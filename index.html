@@ -1,407 +1,379 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Meu Amor - Game</title>
-<style>
-  body {
-    margin: 0;
-    background: #222;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-  }
-</style>
-<script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
-<script>
-// =============================
-// SCENE 1 - Start
-// =============================
-class StartScene extends Phaser.Scene {
-  constructor() {
-    super('StartScene');
-  }
-  create() {
-    // Simple instructions
-    this.add.text(400, 300, "Oi meu amor,\nPressione BARRA DE ESPAÇO para iniciar",
-      { font: "20px Arial", fill: "#ffffff", align: "center" }
-    ).setOrigin(0.5);
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('RickMortyScene');
-    });
-  }
-}
+  <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Forum&family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet"><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Meu Amor - Game</title>
+    <style>
+      body {
+        margin: 0;
+        background: #222;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
+    <script>
+    // =============================
+    // SCENE 1 - Start
+    // =============================
+    class StartScene extends Phaser.Scene {
+      constructor() {
+        super('StartScene');
+      }
 
-// =============================
-// SCENE 2 - Rick and Morty Intro
-// =============================
-// "Desde que começamos a compartilhar nossas vidas..."
-class RickMortyScene extends Phaser.Scene {
-  constructor() {
-    super('RickMortyScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Desde que começamos a compartilhar nossas vidas,\n" +
-      "tenho sentido algo tão profundo que nem as realidades paralelas\nde Rick and Morty poderiam explicar.\n\nPressione ESPAÇO",
-      { font: "20px Arial", fill: "#fff", align: "center" }
-    ).setOrigin(0.5);
+      create() {
+        const titleText = this.add.text(400, 250, "Oi, meu amor,", {
+          fontFamily: 'Pixelify Sans',
+          fontWeight: '700',
+          fontSize: '20px',
+          color: "#ffffff",
+          align: "center"
+        }).setOrigin(0.5);
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('FragmentScene');
-    });
-  }
-}
+        const pressStartText = this.add.text(400, 350, "Pressione a BARRA DE ESPAÇO", {
+          fontFamily: 'Pixelify Sans',
+          fontSize: "20px",
+          color: "#ffffff",
+          align: "center"
+        }).setOrigin(0.5);
 
-// =============================
-// SCENE 3 - Fragmentation & Fixing Time
-// =============================
-// "Oh no, você errou... Assim como aquele episódio em que o tempo se fragmenta..."
-// Depois vocês consertam. "Nosso amor transcende qualquer rachadura no espaço-tempo."
-class FragmentScene extends Phaser.Scene {
-  constructor() {
-    super('FragmentScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Oh não, você errou!\nAssim como aquele episódio em que o tempo se fragmenta,\nmesmo assim nada mudaria nossa essência.\n" +
-      "Nosso amor transcende qualquer dúvida no espaço-tempo.\n\nPressione ESPAÇO",
-      { font: "18px Arial", fill: "#fff", align: "center" }
-    ).setOrigin(0.5);
+        // Blink effect
+        this.tweens.add({
+          targets: pressStartText,
+          alpha: 0,
+          duration: 800,
+          yoyo: true,
+          repeat: -1
+        });
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('HarryPotterScene');
-    });
-  }
-}
+        // Space to go to next scene
+        this.input.keyboard.on('keydown-SPACE', () => {
+          this.scene.start('RickMortyScene');
+        });
+      }
+    }
 
-// =============================
-// SCENE 4 - Harry Potter Outfit
-// =============================
-// "Escreva a frase secreta para começar" (pode usar input depois)
-// Por agora, só pressione espaço para continuar
-class HarryPotterScene extends Phaser.Scene {
-  constructor() {
-    super('HarryPotterScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Vista de Harry Potter!\nDigite a frase secreta (por ora, apenas pressione ESPAÇO)\n\nPressione ESPAÇO",
-      { font: "18px Arial", fill: "#fff", align: "center" }
-    ).setOrigin(0.5);
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('BroomScene');
-    });
-  }
-}
+    // =============================
+    // RickMortyScene (StartScene)
+    // Jogador anda até a direita, entra no portal e vai para CenaPreta
+    // =============================
+    class RickMortyScene extends Phaser.Scene {
+      constructor() {
+        super('RickMortyScene');
+        this.blockHit = false;
+        this.mushroomCollected = false;
+      }
 
-// =============================
-// SCENE 5 - Broom & Ball Scene
-// =============================
-// Ele voa na vassoura e é acertado pela bola.
-// "Assim como essa bola veio do nada e acertou você, o teu amor me acertou em cheio!"
-class BroomScene extends Phaser.Scene {
-  constructor() {
-    super('BroomScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Voando na vassoura... PUM! Bola acerta ele.\n'Assim como essa bola veio do nada e acertou você,\n" +
-      "o teu amor chegou na minha vida sem aviso e me acertou em cheio!'\n\nPressione ESPAÇO",
-      { font: "18px Arial", fill: "#fff", align: "center"}
-    ).setOrigin(0.5);
+      create() {
+        this.physics.world.setBounds(0, 0, 800, 600);
+        this.physics.world.gravity.y = 500;
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('HelpKissScene');
-    });
-  }
-}
+        // Chão
+        const ground = this.add.rectangle(400, 590, 800, 20, 0x654321);
+        this.physics.add.existing(ground, true);
 
-// =============================
-// SCENE 6 - Help & Kiss Scene
-// =============================
-// "A gente se ajuda, a gente se cura, e no final, a gente sempre escolhe estar juntos."
-class HelpKissScene extends Phaser.Scene {
-  constructor() {
-    super('HelpKissScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Eu te ajudo a se levantar e te beijo.\n'A gente se ajuda, a gente se cura, e no final,\n" +
-      "a gente sempre escolhe estar juntos.'\n\nPressione ESPAÇO",
-      { font: "18px Arial", fill: "#fff", align: "center"}
-    ).setOrigin(0.5);
+        // Jogador
+        this.player = this.add.rectangle(100, 500, 30, 50, 0xff0000);
+        this.physics.add.existing(this.player);
+        this.player.body.setCollideWorldBounds(true);
+        this.physics.add.collider(this.player, ground);
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('JuntosNosScene');
-    });
-  }
-}
+        // Yellow Block
+        this.block = this.add.rectangle(400, 400, 32, 32, 0xFFFF00);
+        this.physics.add.existing(this.block, true);
+        this.physics.add.collider(this.player, this.block, this.hitBlock, null, this);
 
-// =============================
-// SCENE 7 - Juntos Nós...
-// Mostra atividades (ler Bíblia, orar, jejuar, etc.)
-class JuntosNosScene extends Phaser.Scene {
-  constructor() {
-    super('JuntosNosScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Eu amo nós dois juntos porque juntos nós...\n- ler a Bíblia\n- Orar\n- Jejuar\n- assistir vídeos no YouTube\n- rir de coisas bobas\n- ficar bravos e fazer as pazes\n\nPressione ESPAÇO",
-      { font: "16px Arial", fill: "#fff", align: "center" }
-    ).setOrigin(0.5);
+        // Mushroom (initially hidden)
+        this.mushroom = this.add.rectangle(400, 368, 20, 20, 0x00FF00);
+        this.physics.add.existing(this.mushroom);
+        this.mushroom.visible = false;
+        this.mushroom.body.setAllowGravity(false);
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('PortalTimeScene');
-    });
-  }
-}
+        // Portal (initially hidden)
+        this.portal = this.add.rectangle(750, 500, 50, 100, 0x00FFFF);
+        this.physics.add.existing(this.portal, true);
+        this.portal.visible = false;
 
-// =============================
-// SCENE 8 - Portal e Viagem no Tempo (Rick and Morty de novo, voltar a 2017)
-class PortalTimeScene extends Phaser.Scene {
-  constructor() {
-    super('PortalTimeScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Eu queria ter o portal gun do Rick para chegar até você em segundos...\nVamos voltar a 2017 e rever nossas mensagens.\n\nPressione ESPAÇO",
-      { font: "18px Arial", fill: "#fff", align: "center"}
-    ).setOrigin(0.5);
+        // Collider for the mushroom and ground
+        this.physics.add.collider(this.mushroom, ground);
+        this.physics.add.overlap(this.player, this.mushroom, this.collectMushroom, null, this);
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('Messages2017Scene');
-    });
-  }
-}
+        // Overlap for the portal
+        this.physics.add.overlap(this.player, this.portal, this.enterPortal, null, this);
 
-// =============================
-// SCENE 9 - Mensagens de 2017, lembrar do primeiro contato
-class Messages2017Scene extends Phaser.Scene {
-  constructor() {
-    super('Messages2017Scene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Voltando a 2017...\nNós nos conhecemos online, trocando mensagens bobas.\n'Vc é mt gata, tem amigas pra me apresentar?'\n\nPressione ESPAÇO",
-      { font: "18px Arial", fill: "#fff", align: "center"}
-    ).setOrigin(0.5);
+        // Input keys
+        this.cursors = this.input.keyboard.createCursorKeys();
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('SmileMemoriesScene');
-    });
-  }
-}
+        // Instructions
+        this.infoText = this.add.text(400, 100, 
+          "Bata de cabeça no bloco amarelo para liberar o cogumelo!\nUse as setas para mover, Espaço para pular.", 
+          { font: "16px Arial", fill: "#ffffff", align: "center" }
+        ).setOrigin(0.5);
+      }
 
-// =============================
-// SCENE 10 - Sorriso, memória aconchegante
-// "Seu sorriso continua o mesmo..."
-class SmileMemoriesScene extends Phaser.Scene {
-  constructor() {
-    super('SmileMemoriesScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Seu sorriso não mudou... é um cobertor quentinho.\nNos transporta a outra realidade.\n\nPressione ESPAÇO",
-      { font: "18px Arial", fill: "#fff", align: "center"}
-    ).setOrigin(0.5);
+      update() {
+        const speed = 160;
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('TimeTravelNov2024Scene');
-    });
-  }
-}
+        // Horizontal movement
+        if (this.cursors.left.isDown) {
+          this.player.body.setVelocityX(-speed);
+        } else if (this.cursors.right.isDown) {
+          this.player.body.setVelocityX(speed);
+        } else {
+          this.player.body.setVelocityX(0);
+        }
 
-// =============================
-// SCENE 11 - Viajar no tempo novembro 2024, lembrar do aeroporto
-class TimeTravelNov2024Scene extends Phaser.Scene {
-  constructor() {
-    super('TimeTravelNov2024Scene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Vamos para novembro 2024...\nLembro da primeira vez que te vi no aeroporto,\neu colocando as coisas no carro com vergonha.\n\nPressione ESPAÇO",
-      { font: "18px Arial", fill: "#fff", align: "center"}
-    ).setOrigin(0.5);
+        // Jump if on the ground
+        if ((this.cursors.up.isDown || this.cursors.space.isDown) && this.player.body.blocked.down) {
+          this.player.body.setVelocityY(-400);
+        }
+      }
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('ElogioScene');
-    });
-  }
-}
+      hitBlock(player, block) {
+        // Check if hitting from below
+        if (!this.blockHit && player.body.touching.up) {
+          this.blockHit = true;
+          
+          // Show the mushroom
+          this.mushroom.visible = true;
+          this.mushroom.body.setAllowGravity(true);
+        }
+      }
 
-// =============================
-// SCENE 12 - Primeiro Elogio, Instagram, momentos impressionantes
-class ElogioScene extends Phaser.Scene {
-  constructor() {
-    super('ElogioScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Até o seu primeiro elogio, as msgs no Instagram,\ntodos os nossos momentos me impressionam.\nComo a música do 'Peido' para Morty.\n\nPressione ESPAÇO",
-      { font: "18px Arial", fill: "#fff", align: "center"}
-    ).setOrigin(0.5);
+      collectMushroom(player, mushroom) {
+        if (!this.mushroomCollected) {
+          this.mushroomCollected = true;
+          mushroom.destroy();
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('TextingSillyScene');
-    });
-  }
-}
+          // Show the portal after the mushroom is collected
+          this.portal.visible = true;
+        }
+      }
 
-// =============================
-// SCENE 13 - Mensagens bobas no celular
-class TextingSillyScene extends Phaser.Scene {
-  constructor() {
-    super('TextingSillyScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Quando você diz bobagens como:\n'Eu vou me matar com três dedos na bunda às 20:43'\n" +
-      "e eu digo que faço cocô na sua boca...\nAinda assim sei que você é o homem da minha vida.\n\nPressione ESPAÇO",
-      { font: "16px Arial", fill: "#fff", align: "center"}
-    ).setOrigin(0.5);
+      enterPortal(player, portal) {
+        // When the player touches the portal, go to the next scene
+        this.scene.start('RickMortyMessage');
+      }
+    }
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('Future60YearsScene');
-    });
-  }
-}
 
-// =============================
-// SCENE 14 - Futuro, 50 anos juntos, lembranças
-class Future60YearsScene extends Phaser.Scene {
-  constructor() {
-    super('Future60YearsScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Penso nos nossos 50 anos juntos...\nLembro de correr na rua, você com pizza, eu querendo parar.\nPenso no Star Wars, filas, sua paciência.\n\nPressione ESPAÇO",
-      { font: "16px Arial", fill: "#fff", align: "center"}
-    ).setOrigin(0.5);
+    // =============================
+    // RickMortyMessage
+    // Tela preta, aperte G duas vezes para continuar
+    // =============================
+    class RickMortyMessage extends Phaser.Scene {
+      constructor() {
+        super('RickMortyMessage');
+        this.gCount = 0;
+      }
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('SonicWorldScene');
-    });
-  }
-}
+      create() {
+        this.cameras.main.setBackgroundColor('#000000');
+        this.add.text(400, 300, "Tela preta: Pressione G duas vezes para continuar",
+          { font: "20px Arial", fill: "#ffffff", align: "center"}).setOrigin(0.5);
 
-// =============================
-// SCENE 15 - Sonic World
-// "Admiro a sua força, seu humor... distância, fé..."
-class SonicWorldScene extends Phaser.Scene {
-  constructor() {
-    super('SonicWorldScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "No mundo do Sonic...\nAdmiro sua força, constância, humor, fé.\nA distância é difícil, mas nos torna mais fortes.\n" +
-      "Mal posso esperar pelo dia de não dizer 'tchau' em videochamada.\n\nPressione ESPAÇO",
-      { font: "16px Arial", fill: "#fff", align: "center"}
-    ).setOrigin(0.5);
+        this.gKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.G);
+      }
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('ThankYouScene');
-    });
-  }
-}
+      update() {
+        if (Phaser.Input.Keyboard.JustDown(this.gKey)) {
+          this.gCount++;
+          if (this.gCount >= 2) {
+            this.scene.start('TimeBreakScene');
+          }
+        }
+      }
+    }
 
-// =============================
-// SCENE 16 - Agradecimento Final
-class ThankYouScene extends Phaser.Scene {
-  constructor() {
-    super('ThankYouScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Obrigada por ser você, por dividir seu coração comigo,\npelos dias melhores que você proporciona.\nQue venham décadas de amor, fé e risadas.\n\nPressione ESPAÇO",
-      { font: "18px Arial", fill: "#fff", align: "center"}
-    ).setOrigin(0.5);
+    // =============================
+    // TimeBreakScene
+    // Jogador sai de um portal, encontra Rick, Morty e um inimigo.
+    // Mata o inimigo pulando na cabeça. Ao morrer, o inimigo explode,
+    // divide a tela em 10 partes. Após 2s, volta ao normal, sobra só jogador, Rick e Morty.
+    // =============================
+    class TimeBreakScene extends Phaser.Scene { 
+      constructor() {
+        super('TimeBreakScene');
+        this.enemyDead = false;
+        this.hasGun = false;
+      }
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('LoveYouScene');
-    });
-  }
-}
+      preload() {
+        // Create a small white bullet texture
+        const bulletCanvas = this.textures.createCanvas('bullet', 2, 2);
+        bulletCanvas.context.fillStyle = '#ffffff';
+        bulletCanvas.context.fillRect(0,0,2,2);
+        bulletCanvas.refresh();
+      }
 
-// =============================
-// SCENE 17 - "Eu te amo demais."
-class LoveYouScene extends Phaser.Scene {
-  constructor() {
-    super('LoveYouScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Eu te amo demais.\n\nPressione ESPAÇO",
-      { font: "20px Arial", fill: "#fff", align: "center"}
-    ).setOrigin(0.5);
+      create() {
+        // Physics world
+        this.physics.world.setBounds(0, 0, 800, 600);
+        this.physics.world.gravity.y = 500;
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('ForeverYoursScene');
-    });
-  }
-}
+        // Ground
+        this.ground = this.add.rectangle(400, 590, 800, 20, 0x654321);
+        this.physics.add.existing(this.ground, true);
 
-// =============================
-// SCENE 18 - "Para sempre sua"
-class ForeverYoursScene extends Phaser.Scene {
-  constructor() {
-    super('ForeverYoursScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Para sempre sua,\n\nPressione ESPAÇO",
-      { font: "20px Arial", fill: "#fff", align: "center"}
-    ).setOrigin(0.5);
+        // Player
+        this.player = this.add.rectangle(100, 500, 30, 50, 0xff0000);
+        this.physics.add.existing(this.player);
+        this.player.body.setCollideWorldBounds(true);
+        this.physics.add.collider(this.player, this.ground);
 
-    this.input.keyboard.on('keydown-SPACE', () => {
-      this.scene.start('GiullyaScene');
-    });
-  }
-}
+        // Enemy
+        this.enemy = this.add.rectangle(600, 500, 30, 50, 0xff00ff);
+        this.physics.add.existing(this.enemy);
+        this.enemy.body.setCollideWorldBounds(true);
+        this.physics.add.collider(this.enemy, this.ground);
 
-// =============================
-// SCENE 19 - Giullya
-class GiullyaScene extends Phaser.Scene {
-  constructor() {
-    super('GiullyaScene');
-  }
-  create() {
-    this.add.text(400, 300,
-      "Giullya",
-      { font: "20px Arial", fill: "#fff", align: "center"}
-    ).setOrigin(0.5);
-    // End scene - no more transitions, or restart if you want.
-  }
-}
+        // Gun spawn
+        this.gunSpawnX = 700; 
+        this.gunSpawnY = 550;
+        this.addGun(this.ground);
 
-// =============================
-// GAME CONFIG
-// =============================
-const config = {
-  type: Phaser.AUTO,
-  width: 800,
-  height: 600,
-  backgroundColor: "#000000",
-  scene: [
-    StartScene, RickMortyScene, FragmentScene, 
-    HarryPotterScene, BroomScene, HelpKissScene,
-    JuntosNosScene, PortalTimeScene, Messages2017Scene,
-    SmileMemoriesScene, TimeTravelNov2024Scene, ElogioScene,
-    TextingSillyScene, Future60YearsScene, SonicWorldScene,
-    ThankYouScene, LoveYouScene, ForeverYoursScene, GiullyaScene
-  ],
-  physics: {
-    default: 'arcade',
-    arcade: { debug: false }
-  }
-};
+        // Bullets
+        this.bullets = this.physics.add.group({ allowGravity: false });
 
-new Phaser.Game(config);
-</script>
-</head>
+        // Overlaps
+        this.physics.add.overlap(this.bullets, this.enemy, this.shootEnemy, null, this);
+        this.physics.add.overlap(this.player, this.enemy, this.enemyHitPlayer, null, this);
+
+        // Input
+        this.cursors = this.input.keyboard.createCursorKeys();
+        this.shootKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+
+        // Respawn point
+        this.spawnPoint = { x: 100, y: 500 };
+      }
+
+      update() {
+        const speed = 160;
+
+        // Movement
+        if (this.cursors.left.isDown) {
+          this.player.body.setVelocityX(-speed);
+        } else if (this.cursors.right.isDown) {
+          this.player.body.setVelocityX(speed);
+        } else {
+          this.player.body.setVelocityX(0);
+        }
+
+        // Jump
+        if (this.cursors.up.isDown && this.player.body.blocked.down) {
+          this.player.body.setVelocityY(-400);
+        }
+
+        // Shoot
+        if (this.hasGun && Phaser.Input.Keyboard.JustDown(this.shootKey)) {
+          this.shootBullet();
+        }
+
+        // Enemy follow
+        if (!this.enemyDead) {
+          if (this.player.x < this.enemy.x) {
+            this.enemy.body.setVelocityX(-100);
+          } else {
+            this.enemy.body.setVelocityX(100);
+          }
+        }
+      }
+
+      addGun(ground) {
+        // Add the gun back at original position
+        this.gun = this.add.rectangle(this.gunSpawnX, this.gunSpawnY, 20, 10, 0xffff00);
+        this.physics.add.existing(this.gun);
+        this.physics.add.collider(this.gun, ground);
+        this.physics.add.overlap(this.player, this.gun, this.collectGun, null, this);
+      }
+
+      collectGun(player, gun) {
+        this.hasGun = true;
+        gun.destroy();
+        this.add.text(400, 100, "You got the gun! Press SPACE to shoot.", { font: "16px Arial", fill: "#ffffff" }).setOrigin(0.5);
+      }
+
+      shootBullet() {
+        const bullet = this.bullets.create(this.player.x + 20, this.player.y, 'bullet');
+        bullet.setDisplaySize(10, 5);
+        bullet.body.setVelocityX(400);
+      }
+
+      shootEnemy(bullet, enemy) {
+        bullet.destroy();
+        this.killEnemy();
+      }
+
+      enemyHitPlayer(player, enemy) {
+        if (!this.enemyDead) {
+          // Player loses the gun on death
+          this.hasGun = false;
+          this.respawnPlayer();
+
+          // Re-add the gun after losing it
+          this.addGun(this.ground);
+        }
+      }
+
+      respawnPlayer() {
+        this.player.setPosition(this.spawnPoint.x, this.spawnPoint.y);
+        this.player.body.setVelocity(0);
+      }
+
+      killEnemy() {
+        if (this.enemyDead) return;
+        this.enemyDead = true;
+        this.enemy.destroy();
+
+        // Create a 4x5 grid of cameras, all showing the entire scene
+        const rows = 4;
+        const cols = 5;
+        const camWidth = 800 / cols;
+        const camHeight = 600 / rows;
+
+        const zoomFactor = 0.2;
+
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < cols; col++) {
+            const cam = this.cameras.add(col * camWidth, row * camHeight, camWidth, camHeight);
+            // Center the camera on the scene center (400,300) and zoom out
+            cam.setScroll(400, 300); // center of the scene
+            cam.setZoom(zoomFactor);
+          }
+        }
+        this.cameras.main.setVisible(false);
+
+        
+      }
+    }
+
+
+    // =============================
+    // GAME CONFIG
+    // =============================
+    const config = {
+      type: Phaser.AUTO,
+      width: 800,
+      height: 600,
+      backgroundColor: "#000000",
+      scene: [
+        StartScene, RickMortyScene, RickMortyMessage, TimeBreakScene 
+        ],
+      physics: {
+        default: 'arcade',
+        arcade: { debug: false }
+      }
+    };
+
+    new Phaser.Game(config);
+    </script>
+  </head>
 <body>
 </body>
 </html>
