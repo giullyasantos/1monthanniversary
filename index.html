@@ -1,23 +1,24 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-  <head>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Forum&family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet"><meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Meu Amor - Game</title>
-    <style>
-      body {
-        margin: 0;
-        background: #222;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-      }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
-    <script>
+<head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Forum&family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Meu Amor - Game</title>
+  <style>
+    body {
+      margin: 0;
+      background: #222;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
+  <script>
     // =============================
     // SCENE 1 - Start
     // =============================
@@ -60,8 +61,7 @@
 
 
     // =============================
-    // RickMortyScene (StartScene)
-    // Jogador anda até a direita, entra no portal e vai para CenaPreta
+    // RickMortyScene
     // =============================
     class RickMortyScene extends Phaser.Scene {
       constructor() {
@@ -70,19 +70,34 @@
         this.mushroomCollected = false;
       }
 
+      preload() {
+        // Load player assets
+        this.load.image('gui_normal', 'assets/gui_normal.png');
+        // Adjust frameWidth and frameHeight as per your spritesheet
+        this.load.spritesheet('gui_normal_walk', 'assets/gui_normal_walk.png', { frameWidth: 30, frameHeight: 50 });
+        this.load.image('gui_normal_jump', 'assets/gui_normal_jump.png');
+      }
+
       create() {
         this.physics.world.setBounds(0, 0, 800, 600);
         this.physics.world.gravity.y = 500;
 
-        // Chão
+        // Ground
         const ground = this.add.rectangle(400, 590, 800, 20, 0x654321);
         this.physics.add.existing(ground, true);
 
-        // Jogador
-        this.player = this.add.rectangle(100, 500, 30, 50, 0xff0000);
-        this.physics.add.existing(this.player);
-        this.player.body.setCollideWorldBounds(true);
+        // Player as a sprite now
+        this.player = this.physics.add.sprite(100, 500, 'gui_normal');
+        this.player.setCollideWorldBounds(true);
         this.physics.add.collider(this.player, ground);
+
+        // Create walking animation
+        this.anims.create({
+          key: 'walk',
+          frames: this.anims.generateFrameNumbers('gui_normal_walk', { start: 0, end: 3 }), 
+          frameRate: 8,
+          repeat: -1
+        });
 
         // Yellow Block
         this.block = this.add.rectangle(400, 400, 32, 32, 0xFFFF00);
@@ -119,6 +134,8 @@
 
       update() {
         const speed = 160;
+        const onGround = this.player.body.blocked.down; // Ensure onGround is defined
+        const vx = this.player.body.velocity.x;
 
         // Horizontal movement
         if (this.cursors.left.isDown) {
@@ -130,17 +147,29 @@
         }
 
         // Jump if on the ground
-        if ((this.cursors.up.isDown || this.cursors.space.isDown) && this.player.body.blocked.down) {
+        if ((this.cursors.up.isDown || this.cursors.space.isDown) && onGround) {
           this.player.body.setVelocityY(-400);
+        }
+
+        // Update player animations based on state
+        if (!onGround) {
+          // Jumping or falling
+          this.player.setTexture('gui_normal_jump');
+        } else {
+          // On the ground
+          if (this.player.body.velocity.x !== 0) {
+            // Walking
+            this.player.anims.play('walk', true);
+          } else {
+            // Standing still
+            this.player.setTexture('gui_normal');
+          }
         }
       }
 
       hitBlock(player, block) {
-        // Check if hitting from below
         if (!this.blockHit && player.body.touching.up) {
           this.blockHit = true;
-          
-          // Show the mushroom
           this.mushroom.visible = true;
           this.mushroom.body.setAllowGravity(true);
         }
@@ -150,14 +179,11 @@
         if (!this.mushroomCollected) {
           this.mushroomCollected = true;
           mushroom.destroy();
-
-          // Show the portal after the mushroom is collected
           this.portal.visible = true;
         }
       }
 
       enterPortal(player, portal) {
-        // When the player touches the portal, go to the next scene
         this.scene.start('RickMortyMessage');
       }
     }
@@ -165,7 +191,6 @@
 
     // =============================
     // RickMortyMessage
-    // Tela preta, aperte G duas vezes para continuar
     // =============================
     class RickMortyMessage extends Phaser.Scene {
       constructor() {
@@ -193,27 +218,29 @@
 
     // =============================
     // TimeBreakScene
-    // Jogador sai de um portal, encontra Rick, Morty e um inimigo.
-    // Mata o inimigo pulando na cabeça. Ao morrer, o inimigo explode,
-    // divide a tela em 10 partes. Após 2s, volta ao normal, sobra só jogador, Rick e Morty.
     // =============================
-    class TimeBreakScene extends Phaser.Scene { 
+    class TimeBreakScene extends Phaser.Scene {
       constructor() {
         super('TimeBreakScene');
         this.enemyDead = false;
         this.hasGun = false;
+        this.fragmentCams = [];
       }
 
       preload() {
-        // Create a small white bullet texture
+        // Create bullet texture
         const bulletCanvas = this.textures.createCanvas('bullet', 2, 2);
         bulletCanvas.context.fillStyle = '#ffffff';
         bulletCanvas.context.fillRect(0,0,2,2);
         bulletCanvas.refresh();
+
+        // Load player assets again
+        this.load.image('gui_normal', 'assets/gui_normal.png');
+        this.load.spritesheet('gui_normal_walk', 'assets/gui_normal_walk.png', { frameWidth: 30, frameHeight: 50 });
+        this.load.image('gui_normal_jump', 'assets/gui_normal_jump.png');
       }
 
       create() {
-        // Physics world
         this.physics.world.setBounds(0, 0, 800, 600);
         this.physics.world.gravity.y = 500;
 
@@ -221,11 +248,18 @@
         this.ground = this.add.rectangle(400, 590, 800, 20, 0x654321);
         this.physics.add.existing(this.ground, true);
 
-        // Player
-        this.player = this.add.rectangle(100, 500, 30, 50, 0xff0000);
-        this.physics.add.existing(this.player);
-        this.player.body.setCollideWorldBounds(true);
+        // Player as sprite
+        this.player = this.physics.add.sprite(100, 500, 'gui_normal');
+        this.player.setCollideWorldBounds(true);
         this.physics.add.collider(this.player, this.ground);
+
+        // Animations again
+        this.anims.create({
+          key: 'walk',
+          frames: this.anims.generateFrameNumbers('gui_normal_walk', { start: 0, end: 3 }),
+          frameRate: 8,
+          repeat: -1
+        });
 
         // Enemy
         this.enemy = this.add.rectangle(600, 500, 30, 50, 0xff00ff);
@@ -233,7 +267,7 @@
         this.enemy.body.setCollideWorldBounds(true);
         this.physics.add.collider(this.enemy, this.ground);
 
-        // Gun spawn
+        // Gun
         this.gunSpawnX = 700; 
         this.gunSpawnY = 550;
         this.addGun(this.ground);
@@ -251,31 +285,54 @@
 
         // Respawn point
         this.spawnPoint = { x: 100, y: 500 };
+
+        // Portals setup
+        this.portalLeft = this.add.rectangle(100, 500, 50, 100, 0x00FFFF);
+        this.physics.add.existing(this.portalLeft, true);
+        this.portalLeft.visible = false;
+        this.portalLeft.body.enable = false;
+
+        this.portalRight = this.add.rectangle(700, 500, 50, 100, 0x00FFFF);
+        this.physics.add.existing(this.portalRight, true);
+        this.portalRight.visible = false;
+        this.portalRight.body.enable = false;
+
+        this.physics.add.overlap(this.player, this.portalRight, this.enterRightPortal, null, this);
       }
 
       update() {
         const speed = 160;
+        const onGround = this.player.body.blocked.down; // Ensure onGround is defined here too
 
         // Movement
         if (this.cursors.left.isDown) {
-          this.player.body.setVelocityX(-speed);
+          this.player.setVelocityX(-speed);
         } else if (this.cursors.right.isDown) {
-          this.player.body.setVelocityX(speed);
+          this.player.setVelocityX(speed);
         } else {
-          this.player.body.setVelocityX(0);
+          this.player.setVelocityX(0);
         }
 
         // Jump
-        if (this.cursors.up.isDown && this.player.body.blocked.down) {
-          this.player.body.setVelocityY(-400);
+        if ((this.cursors.up.isDown || this.cursors.space.isDown) && onGround) {
+          this.player.setVelocityY(-400);
         }
 
-        // Shoot
-        if (this.hasGun && Phaser.Input.Keyboard.JustDown(this.shootKey)) {
-          this.shootBullet();
+        // Animate based on state
+        if (!onGround) {
+          // Jump/fall
+          this.player.setTexture('gui_normal_jump');
+        } else {
+          if (this.player.body.velocity.x !== 0) {
+            // Walking
+            this.player.anims.play('walk', true);
+          } else {
+            // Idle
+            this.player.setTexture('gui_normal');
+          }
         }
 
-        // Enemy follow
+        // Enemy follow if alive
         if (!this.enemyDead) {
           if (this.player.x < this.enemy.x) {
             this.enemy.body.setVelocityX(-100);
@@ -286,7 +343,6 @@
       }
 
       addGun(ground) {
-        // Add the gun back at original position
         this.gun = this.add.rectangle(this.gunSpawnX, this.gunSpawnY, 20, 10, 0xffff00);
         this.physics.add.existing(this.gun);
         this.physics.add.collider(this.gun, ground);
@@ -296,7 +352,8 @@
       collectGun(player, gun) {
         this.hasGun = true;
         gun.destroy();
-        this.add.text(400, 100, "You got the gun! Press SPACE to shoot.", { font: "16px Arial", fill: "#ffffff" }).setOrigin(0.5);
+        this.add.text(400, 100, "You got the gun! Press SPACE to shoot.", 
+          { font: "16px Arial", fill: "#ffffff" }).setOrigin(0.5);
       }
 
       shootBullet() {
@@ -312,11 +369,8 @@
 
       enemyHitPlayer(player, enemy) {
         if (!this.enemyDead) {
-          // Player loses the gun on death
           this.hasGun = false;
           this.respawnPlayer();
-
-          // Re-add the gun after losing it
           this.addGun(this.ground);
         }
       }
@@ -331,28 +385,153 @@
         this.enemyDead = true;
         this.enemy.destroy();
 
-        // Create a 4x5 grid of cameras, all showing the entire scene
+        // Fragmentation cameras
         const rows = 4;
         const cols = 5;
         const camWidth = 800 / cols;
         const camHeight = 600 / rows;
-
         const zoomFactor = 0.2;
 
         for (let row = 0; row < rows; row++) {
           for (let col = 0; col < cols; col++) {
             const cam = this.cameras.add(col * camWidth, row * camHeight, camWidth, camHeight);
-            // Center the camera on the scene center (400,300) and zoom out
-            cam.setScroll(400, 300); // center of the scene
+            cam.setScroll(400, 300);
             cam.setZoom(zoomFactor);
+            this.fragmentCams.push(cam);
           }
         }
         this.cameras.main.setVisible(false);
 
-        
+        // Player dialog after 1s
+        this.time.delayedCall(1000, () => {
+          this.add.text(400, 100, "O que foi que eu fiz, mano...", {
+            font: "18px Arial", fill: "#fff", align: "center"
+          }).setOrigin(0.5);
+        });
+
+        // Rick & Morty appear at ground level and move in
+        this.time.delayedCall(3000, () => {
+          this.rick = this.add.rectangle(900, 500, 30, 50, 0x0000ff);
+          this.morty = this.add.rectangle(950, 500, 30, 50, 0xffff00);
+
+          this.physics.add.existing(this.rick);
+          this.physics.add.existing(this.morty);
+          this.rick.body.setCollideWorldBounds(true);
+          this.morty.body.setCollideWorldBounds(true);
+          this.physics.add.collider(this.rick, this.ground);
+          this.physics.add.collider(this.morty, this.ground);
+
+          // Move them to player's vicinity
+          this.tweens.add({
+            targets: this.rick,
+            x: this.player.x + 30,
+            duration: 2000,
+            ease: 'Linear'
+          });
+          this.tweens.add({
+            targets: this.morty,
+            x: this.player.x + 70,
+            duration: 2000,
+            ease: 'Linear'
+          });
+
+          // Show their dialogue after they arrive (about 5s total)
+          this.time.delayedCall(5000, () => {
+            this.rickText = this.add.text(400, 240, "Rick: Mds, e agora, bravos, olha o que você fez!!! Quem vai nos ajudar?", {
+              font: "16px Arial", fill: "#0f0", align: "center"
+            }).setOrigin(0.5);
+
+            this.mortyText = this.add.text(400, 260, "Morty: ...", {
+              font: "16px Arial", fill: "#0f0", align: "center"
+            }).setOrigin(0.5);
+          });
+        });
+
+        // Another character comes from left at ground level after 8s
+        this.time.delayedCall(8000, () => {
+          this.newChar = this.add.rectangle(-50, 500, 30, 50, 0xff69b4);
+          this.physics.add.existing(this.newChar);
+          this.newChar.body.setCollideWorldBounds(true);
+          this.physics.add.collider(this.newChar, this.ground);
+
+          // Move the new character to the player
+          this.tweens.add({
+            targets: this.newChar,
+            x: this.player.x,
+            duration: 2000,
+            ease: 'Linear',
+            onComplete: () => {
+              // Show kiss text
+              this.newCharText = this.add.text(400, 340, "??? aparece e beija o jogador", {
+                font: "16px Arial", fill: "#ff69b4", align: "center"
+              }).setOrigin(0.5);
+
+              // Remove fragment
+              this.fragmentCams.forEach(cam => this.cameras.remove(cam));
+              this.fragmentCams = [];
+              this.cameras.main.setVisible(true);
+
+              // Rick & Morty react after 2s
+              this.time.delayedCall(2000, () => {
+                if (this.rickText) this.rickText.setText("Rick: Nossa, nem acredito que o amor faz isso.");
+                if (this.mortyText) this.mortyText.setText("Morty: É incrível...");
+              });
+            }
+          });
+        });
+
+        // Show left portal for Rick & Morty after 12s
+        this.time.delayedCall(12000, () => {
+          this.portalLeft.visible = true;
+
+          // Move Rick & Morty into the left portal after 2s (14s total)
+          this.time.delayedCall(14000, () => {
+            if (this.rickText) this.rickText.setText("Rick: Que chato isso...");
+            if (this.mortyText) this.mortyText.setText("Morty: Vamos embora...");
+
+            // Make left portal visible and enable its body
+            this.portalLeft.visible = true;
+            this.portalLeft.body.enable = true;
+
+            // Tween them into portalLeft.x, then destroy them
+            this.tweens.add({
+              targets: [this.rick, this.morty],
+              x: this.portalLeft.x,
+              duration: 2000,
+              ease: 'Linear',
+              onComplete: () => {
+                if (this.rickText) this.rickText.destroy();
+                if (this.mortyText) this.mortyText.destroy();
+                if (this.rick) this.rick.destroy();
+                if (this.morty) this.morty.destroy();
+                this.portalLeft.setFillStyle(0x00ffff); 
+                this.portalLeft.setSize(50,100);
+                this.portalLeft.setVisible(true);
+
+                this.time.delayedCall(1000, () => {
+                  // Close the left portal
+                  this.portalLeft.visible = false;
+
+                  if (this.newCharText) this.newCharText.setText("??? : Vamos pra um mundo mágico agora!");
+
+                  // Show right portal after 2 more seconds (19s total)
+                  this.time.delayedCall(2000, () => {
+                    // Make right portal visible and enable its body
+                    this.portalRight.visible = true;
+                    this.portalRight.body.enable = true;
+                  });
+                });
+              }
+            });
+          });
+        });
+      }
+
+      enterRightPortal(player, portal) {
+        // When player (and presumably newChar is near) touches the right portal, go to next scene
+        this.scene.start('RickMortyMessage');
       }
     }
-
 
     // =============================
     // GAME CONFIG
@@ -363,8 +542,8 @@
       height: 600,
       backgroundColor: "#000000",
       scene: [
-        StartScene, RickMortyScene, RickMortyMessage, TimeBreakScene 
-        ],
+        StartScene, RickMortyScene, RickMortyMessage, TimeBreakScene
+      ],
       physics: {
         default: 'arcade',
         arcade: { debug: false }
@@ -372,8 +551,8 @@
     };
 
     new Phaser.Game(config);
-    </script>
-  </head>
+  </script>
+</head>
 <body>
 </body>
 </html>
