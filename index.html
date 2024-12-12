@@ -59,7 +59,6 @@
       }
     }
 
-
     // =============================
     // RickMortyScene
     // =============================
@@ -68,14 +67,23 @@
         super('RickMortyScene');
         this.blockHit = false;
         this.mushroomCollected = false;
+        this.facing = 'right'; // keep track of current facing direction: 'left' or 'right'
+        this.walkFrameCounter = 0; // a counter to help us alternate walking sprites
       }
 
       preload() {
-        // Load player assets
-        this.load.image('gui_normal', 'assets/gui_normal.png');
-        // Adjust frameWidth and frameHeight as per your spritesheet
-        this.load.image('gui_normal_walk', 'assets/gui_normal_walk.png');
-        this.load.image('gui_normal_jump', 'assets/gui_normal_jump.png');
+        // Load all directional sprites
+        this.load.image('gui_normal_left', 'assets/gui_normal_left.png');
+        this.load.image('gui_normal_right', 'assets/gui_normal_right.png');
+        this.load.image('gui_normal_walk_left', 'assets/gui_normal_walk_left.png');
+        this.load.image('gui_normal_walk_right', 'assets/gui_normal_walk_right.png');
+        this.load.image('gui_normal_jump_left', 'assets/gui_normal_jump_left.png');
+        this.load.image('gui_normal_jump_right', 'assets/gui_normal_jump_right.png');
+      
+        const graphics = this.make.graphics({ x: 0, y: 0, add: false });
+          graphics.fillStyle(0xffffff, 1);
+          graphics.fillCircle(2, 2, 2);
+          graphics.generateTexture('particle', 4, 4);
       }
 
       create() {
@@ -86,8 +94,9 @@
         const ground = this.add.rectangle(400, 590, 800, 20, 0x654321);
         this.physics.add.existing(ground, true);
 
-        // Player as a sprite now
-        this.player = this.physics.add.sprite(100, 500, 'gui_normal');
+        // Player
+        this.player = this.physics.add.sprite(100, 500, 'gui_normal_right');
+        this.player.setScale(0.1);
         this.player.setCollideWorldBounds(true);
         this.physics.add.collider(this.player, ground);
 
@@ -96,76 +105,152 @@
         this.physics.add.existing(this.block, true);
         this.physics.add.collider(this.player, this.block, this.hitBlock, null, this);
 
-        // Mushroom (initially hidden)
+        // Mushroom
         this.mushroom = this.add.rectangle(400, 368, 20, 20, 0x00FF00);
         this.physics.add.existing(this.mushroom);
         this.mushroom.visible = false;
         this.mushroom.body.setAllowGravity(false);
 
-        // Portal (initially hidden)
+        // Portal
         this.portal = this.add.rectangle(750, 500, 50, 100, 0x00FFFF);
         this.physics.add.existing(this.portal, true);
         this.portal.visible = false;
 
-        // Collider for the mushroom and ground
+        // Colliders and Overlaps
         this.physics.add.collider(this.mushroom, ground);
         this.physics.add.overlap(this.player, this.mushroom, this.collectMushroom, null, this);
-
-        // Overlap for the portal
         this.physics.add.overlap(this.player, this.portal, this.enterPortal, null, this);
 
-        // Input keys
+        // Inputs
         this.cursors = this.input.keyboard.createCursorKeys();
 
-        // Instructions
+        // Info Text
         this.infoText = this.add.text(400, 100, 
           "Bata de cabeça no bloco amarelo para liberar o cogumelo!\nUse as setas para mover, Espaço para pular.", 
           { font: "16px Arial", fill: "#ffffff", align: "center" }
         ).setOrigin(0.5);
       }
 
+      /**
+       * Emits a burst of particles at the specified (x, y) position.
+       * @param {number} x - The x-coordinate where the burst occurs.
+       * @param {number} y - The y-coordinate where the burst occurs.
+       */
+      emitParticleBurst(x, y) {
+        const particleCount = 20; // Number of particles per burst
+        for (let i = 0; i < particleCount; i++) {
+          const angle = Phaser.Math.Between(0, 360);
+          const speed = Phaser.Math.Between(50, 150);
+          const velocityX = Math.cos(Phaser.Math.DegToRad(angle)) * speed;
+          const velocityY = Math.sin(Phaser.Math.DegToRad(angle)) * speed;
+
+          const particle = this.add.sprite(x, y, 'particle');
+          this.physics.add.existing(particle);
+          particle.body.setVelocity(velocityX, velocityY);
+          particle.body.setAllowGravity(false);
+
+          // Animate particle scaling and fading
+          this.tweens.add({
+            targets: particle,
+            alpha: 0,
+            scale: { from: 1, to: 0 },
+            duration: 500,
+            onComplete: () => {
+              particle.destroy();
+            }
+          });
+        }
+      }
+
       update() {
         const speed = 160;
-        const onGround = this.player.body.blocked.down; // Ensure onGround is defined
-        const vx = this.player.body.velocity.x;
+        const onGround = this.player.body.blocked.down;
 
-        // Horizontal movement
+        // Reset walking frame counter if standing still
+        if (this.player.body.velocity.x === 0) {
+          this.walkFrameCounter = 0;
+        }
+
+        // Horizontal movement input
         if (this.cursors.left.isDown) {
           this.player.body.setVelocityX(-speed);
+          this.facing = 'left'; // face left if moving left
         } else if (this.cursors.right.isDown) {
           this.player.body.setVelocityX(speed);
+          this.facing = 'right'; // face right if moving right
         } else {
           this.player.body.setVelocityX(0);
         }
 
-        // Jump if on the ground
-        if ((this.cursors.up.isDown || this.cursors.space.isDown) && onGround) {
+        // Jumping
+        if ((this.cursors.up.isDown ) && onGround) {
           this.player.body.setVelocityY(-400);
         }
 
-        // Update player animations based on state
+        // Determine sprite based on state
         if (!onGround) {
-          // Jumping or falling
-          this.player.setTexture('gui_normal_jump');
-        } else {
-          // On the ground
-          if (this.player.body.velocity.x !== 0) {
-            // Walking
-            this.player.setTexture('gui_normal_walk');
+          // Player is jumping or falling
+          // If facing left, use jump_left; if right, use jump_right
+          if (this.facing === 'left') {
+            this.player.setTexture('gui_normal_jump_left');
           } else {
-            // Standing still
-            this.player.setTexture('gui_normal');
+            this.player.setTexture('gui_normal_jump_right');
+          }
+        } else {
+          // Player is on the ground
+          if (this.player.body.velocity.x !== 0) {
+            // Player is walking
+            // Alternate between idle and walk texture to simulate walking
+            this.walkFrameCounter++;
+            if (this.facing === 'left') {
+              // Alternate between normal_left and walk_left
+              if (this.walkFrameCounter % 20 < 10) {
+                this.player.setTexture('gui_normal_left');
+              } else {
+                this.player.setTexture('gui_normal_walk_left');
+              }
+            } else {
+              // Facing right, alternate between normal_right and walk_right
+              if (this.walkFrameCounter % 20 < 10) {
+                this.player.setTexture('gui_normal_right');
+              } else {
+                this.player.setTexture('gui_normal_walk_right');
+              }
+            }
+          } else {
+            // Player is idle
+            // Just show idle texture according to facing direction
+            if (this.facing === 'left') {
+              this.player.setTexture('gui_normal_left');
+            } else {
+              this.player.setTexture('gui_normal_right');
+            }
           }
         }
       }
 
       hitBlock(player, block) {
-        if (!this.blockHit && player.body.touching.up) {
+      // Trigger the block hit effects only if the player is hitting from below
+      if (player.body.touching.up) {
+        // Handle mushroom release once
+        if (!this.blockHit) {
           this.blockHit = true;
           this.mushroom.visible = true;
           this.mushroom.body.setAllowGravity(true);
         }
+
+        // Change block color to red
+        block.setFillStyle(0xFF0000); // Red color
+        // Revert to original color after 0.5 seconds
+        this.time.delayedCall(500, () => {
+          block.setFillStyle(0xFFFF00); // Original yellow color
+        });
+
+        // Emit particle burst at block's position
+        this.emitParticleBurst(block.x, block.y);
       }
+    }
+
 
       collectMushroom(player, mushroom) {
         if (!this.mushroomCollected) {
@@ -179,7 +264,6 @@
         this.scene.start('RickMortyMessage');
       }
     }
-
 
     // =============================
     // RickMortyMessage
@@ -217,19 +301,42 @@
         this.enemyDead = false;
         this.hasGun = false;
         this.fragmentCams = [];
+        
+        // Additional state variables
+        this.direction = 'right'; // 'left' or 'right'
+        this.isJumping = false;
+        this.walkFrame = 0; // To alternate walking sprites
+        this.walkTimer = 0; // Timer to control sprite switching
       }
 
       preload() {
         // Create bullet texture
         const bulletCanvas = this.textures.createCanvas('bullet', 2, 2);
         bulletCanvas.context.fillStyle = '#ffffff';
-        bulletCanvas.context.fillRect(0,0,2,2);
+        bulletCanvas.context.fillRect(0, 0, 2, 2);
         bulletCanvas.refresh();
 
-        // Load player assets again
-        this.load.image('gui_normal', 'assets/gui_normal.png');
-        this.load.image('gui_normal_walk', 'assets/gui_normal_walk.png');
-        this.load.image('gui_normal_jump', 'assets/gui_normal_jump.png');
+        // Load player assets
+        // Idle/Normal Sprites
+        this.load.image('gui_normal_left', 'assets/gui_normal_left.png');
+        this.load.image('gui_normal_right', 'assets/gui_normal_right.png');
+        this.load.image('gui_normal_left_gun', 'assets/gui_normal_left_gun.png');
+        this.load.image('gui_normal_right_gun', 'assets/gui_normal_right_gun.png');
+
+        // Walking Sprites
+        this.load.image('gui_normal_walk_left', 'assets/gui_normal_walk_left.png');
+        this.load.image('gui_normal_walk_right', 'assets/gui_normal_walk_right.png');
+        this.load.image('gui_normal_walk_left_gun', 'assets/gui_normal_walk_left_gun.png');
+        this.load.image('gui_normal_walk_right_gun', 'assets/gui_normal_walk_right_gun.png');
+
+        // Jumping Sprites
+        this.load.image('gui_normal_jump_left', 'assets/gui_normal_jump_left.png');
+        this.load.image('gui_normal_jump_right', 'assets/gui_normal_jump_right.png');
+        this.load.image('gui_normal_jump_left_gun', 'assets/gui_normal_jump_left_gun.png');
+        this.load.image('gui_normal_jump_right_gun', 'assets/gui_normal_jump_right_gun.png');
+
+        // Load other assets as needed
+        this.load.image('gui_normal', 'assets/gui_normal.png'); // Default sprite if needed
       }
 
       create() {
@@ -241,9 +348,14 @@
         this.physics.add.existing(this.ground, true);
 
         // Player as sprite
-        this.player = this.physics.add.sprite(100, 500, 'gui_normal');
+        this.player = this.physics.add.sprite(100, 500, 'gui_normal_right');
+        this.player.setScale(0.05);
         this.player.setCollideWorldBounds(true);
         this.physics.add.collider(this.player, this.ground);
+
+        // Initialize player state
+        this.direction = 'right';
+        this.isJumping = false;
 
         // Enemy
         this.enemy = this.add.rectangle(600, 500, 30, 50, 0xff00ff);
@@ -252,7 +364,7 @@
         this.physics.add.collider(this.enemy, this.ground);
 
         // Gun
-        this.gunSpawnX = 700; 
+        this.gunSpawnX = 700;
         this.gunSpawnY = 550;
         this.addGun(this.ground);
 
@@ -284,38 +396,44 @@
         this.physics.add.overlap(this.player, this.portalRight, this.enterRightPortal, null, this);
       }
 
-      update() {
+      update(time, delta) {
         const speed = 160;
-        const onGround = this.player.body.blocked.down; // Ensure onGround is defined here too
+        const onGround = this.player.body.blocked.down;
+
+        // Reset velocity
+        this.player.setVelocityX(0);
 
         // Movement
         if (this.cursors.left.isDown) {
           this.player.setVelocityX(-speed);
+          this.direction = 'left';
         } else if (this.cursors.right.isDown) {
           this.player.setVelocityX(speed);
-        } else {
-          this.player.setVelocityX(0);
+          this.direction = 'right';
         }
 
         // Jump
-        if ((this.cursors.up.isDown || this.cursors.space.isDown) && onGround) {
+        if ((this.cursors.up.isDown) && onGround) {
           this.player.setVelocityY(-400);
+          this.isJumping = true;
         }
 
-        // Animate based on state
-        if (!onGround) {
-          // Jump/fall
-          this.player.setTexture('gui_normal_jump');
-        } else {
-          if (this.player.body.velocity.x !== 0) {
-            // Walking
-            this.player.setTexture('gui_normal_walk');
-          } else {
-            // Idle
-            this.player.setTexture('gui_normal');
-          }
+        // Check if player is on ground to reset jumping state
+        if (onGround && this.isJumping) {
+          this.isJumping = false;
+          // Reset walk timer when landing
+          this.walkTimer = 0;
+          this.walkFrame = 0;
         }
 
+        // Handle shooting
+        if (Phaser.Input.Keyboard.JustDown(this.shootKey) && this.hasGun) {
+          this.shootBullet();
+        }
+
+        // Update sprite based on state
+        this.updatePlayerSprite(delta);
+        
         // Enemy follow if alive
         if (!this.enemyDead) {
           if (this.player.x < this.enemy.x) {
@@ -326,6 +444,62 @@
         }
       }
 
+      updatePlayerSprite(delta) {
+        // Update walk timer
+        this.walkTimer += delta;
+
+        // Determine current sprite based on state
+        let spriteKey = '';
+
+        if (this.isJumping) {
+            // Set jumping sprite based on direction and gun state
+            if (this.direction === 'left') {
+                spriteKey = this.hasGun ? 'gui_normal_jump_left_gun' : 'gui_normal_jump_left';
+            } else {
+                spriteKey = this.hasGun ? 'gui_normal_jump_right_gun' : 'gui_normal_jump_right';
+            }
+            this.player.setTexture(spriteKey);
+            return; // Do not proceed to walking or idle if jumping
+        }
+
+        if (this.player.body.velocity.x !== 0) {
+            // Player is moving: handle walking animation
+            if (this.walkTimer >= 100) { // Change sprite every 100ms for smoother animation
+                this.walkFrame = (this.walkFrame + 1) % 2; // Toggle between 0 and 1
+                this.walkTimer = 0;
+            }
+
+            if (this.walkFrame === 0) {
+                // Walking Frame 1
+                if (this.direction === 'left') {
+                    spriteKey = this.hasGun ? 'gui_normal_walk_left_gun' : 'gui_normal_walk_left';
+                } else {
+                    spriteKey = this.hasGun ? 'gui_normal_walk_right_gun' : 'gui_normal_walk_right';
+                }
+            } else {
+                // Walking Frame 2 (Idle Sprite to simulate walking)
+                if (this.direction === 'left') {
+                    spriteKey = this.hasGun ? 'gui_normal_left_gun' : 'gui_normal_left';
+                } else {
+                    spriteKey = this.hasGun ? 'gui_normal_right_gun' : 'gui_normal_right';
+                }
+            }
+
+            this.player.setTexture(spriteKey);
+        } else {
+            // Player is idle: set to idle sprite based on direction and gun state
+            if (this.direction === 'left') {
+                spriteKey = this.hasGun ? 'gui_normal_left_gun' : 'gui_normal_left';
+            } else {
+                spriteKey = this.hasGun ? 'gui_normal_right_gun' : 'gui_normal_right';
+            }
+            this.player.setTexture(spriteKey);
+            // Reset walk animation state
+            this.walkFrame = 0;
+            this.walkTimer = 0;
+        }
+    }
+      
       addGun(ground) {
         this.gun = this.add.rectangle(this.gunSpawnX, this.gunSpawnY, 20, 10, 0xffff00);
         this.physics.add.existing(this.gun);
@@ -337,13 +511,13 @@
         this.hasGun = true;
         gun.destroy();
         this.add.text(400, 100, "You got the gun! Press SPACE to shoot.", 
-          { font: "16px Arial", fill: "#ffffff" }).setOrigin(0.5);
+          { font: "16px Arial", fill: "#ffffff" }).setOrigin(0.5).setScrollFactor(0);
       }
 
       shootBullet() {
-        const bullet = this.bullets.create(this.player.x + 20, this.player.y, 'bullet');
+        const bullet = this.bullets.create(this.player.x + (this.direction === 'right' ? 20 : -20), this.player.y, 'bullet');
         bullet.setDisplaySize(10, 5);
-        bullet.body.setVelocityX(400);
+        bullet.body.setVelocityX(this.direction === 'right' ? 400 : -400);
       }
 
       shootEnemy(bullet, enemy) {
@@ -362,6 +536,8 @@
       respawnPlayer() {
         this.player.setPosition(this.spawnPoint.x, this.spawnPoint.y);
         this.player.body.setVelocity(0);
+        this.isJumping = false;
+        this.direction = 'right'; // Reset direction or keep current
       }
 
       killEnemy() {
@@ -390,7 +566,7 @@
         this.time.delayedCall(1000, () => {
           this.add.text(400, 100, "O que foi que eu fiz, mano...", {
             font: "18px Arial", fill: "#fff", align: "center"
-          }).setOrigin(0.5);
+          }).setOrigin(0.5).setScrollFactor(0);
         });
 
         // Rick & Morty appear at ground level and move in
@@ -423,11 +599,11 @@
           this.time.delayedCall(5000, () => {
             this.rickText = this.add.text(400, 240, "Rick: Mds, e agora, bravos, olha o que você fez!!! Quem vai nos ajudar?", {
               font: "16px Arial", fill: "#0f0", align: "center"
-            }).setOrigin(0.5);
+            }).setOrigin(0.5).setScrollFactor(0);
 
             this.mortyText = this.add.text(400, 260, "Morty: ...", {
               font: "16px Arial", fill: "#0f0", align: "center"
-            }).setOrigin(0.5);
+            }).setOrigin(0.5).setScrollFactor(0);
           });
         });
 
@@ -448,7 +624,7 @@
               // Show kiss text
               this.newCharText = this.add.text(400, 340, "??? aparece e beija o jogador", {
                 font: "16px Arial", fill: "#ff69b4", align: "center"
-              }).setOrigin(0.5);
+              }).setOrigin(0.5).setScrollFactor(0);
 
               // Remove fragment
               this.fragmentCams.forEach(cam => this.cameras.remove(cam));
@@ -488,8 +664,8 @@
                 if (this.mortyText) this.mortyText.destroy();
                 if (this.rick) this.rick.destroy();
                 if (this.morty) this.morty.destroy();
-                this.portalLeft.setFillStyle(0x00ffff); 
-                this.portalLeft.setSize(50,100);
+                this.portalLeft.setFillStyle(0x00ffff);
+                this.portalLeft.setSize(50, 100);
                 this.portalLeft.setVisible(true);
 
                 this.time.delayedCall(1000, () => {
@@ -516,6 +692,7 @@
         this.scene.start('RickMortyMessage');
       }
     }
+
 
     // =============================
     // GAME CONFIG
