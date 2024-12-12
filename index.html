@@ -74,7 +74,7 @@
         // Load player assets
         this.load.image('gui_normal', 'assets/gui_normal.png');
         // Adjust frameWidth and frameHeight as per your spritesheet
-        this.load.spritesheet('gui_normal_walk', 'assets/gui_normal_walk.png', { frameWidth: 30, frameHeight: 50 });
+        this.load.image('gui_normal_walk', 'assets/gui_normal_walk.png');
         this.load.image('gui_normal_jump', 'assets/gui_normal_jump.png');
       }
 
@@ -90,14 +90,6 @@
         this.player = this.physics.add.sprite(100, 500, 'gui_normal');
         this.player.setCollideWorldBounds(true);
         this.physics.add.collider(this.player, ground);
-
-        // Create walking animation
-        this.anims.create({
-          key: 'walk',
-          frames: this.anims.generateFrameNumbers('gui_normal_walk', { start: 0, end: 3 }), 
-          frameRate: 8,
-          repeat: -1
-        });
 
         // Yellow Block
         this.block = this.add.rectangle(400, 400, 32, 32, 0xFFFF00);
@@ -159,7 +151,7 @@
           // On the ground
           if (this.player.body.velocity.x !== 0) {
             // Walking
-            this.player.anims.play('walk', true);
+            this.player.setTexture('gui_normal_walk');
           } else {
             // Standing still
             this.player.setTexture('gui_normal');
@@ -236,7 +228,7 @@
 
         // Load player assets again
         this.load.image('gui_normal', 'assets/gui_normal.png');
-        this.load.spritesheet('gui_normal_walk', 'assets/gui_normal_walk.png', { frameWidth: 30, frameHeight: 50 });
+        this.load.image('gui_normal_walk', 'assets/gui_normal_walk.png');
         this.load.image('gui_normal_jump', 'assets/gui_normal_jump.png');
       }
 
@@ -252,14 +244,6 @@
         this.player = this.physics.add.sprite(100, 500, 'gui_normal');
         this.player.setCollideWorldBounds(true);
         this.physics.add.collider(this.player, this.ground);
-
-        // Animations again
-        this.anims.create({
-          key: 'walk',
-          frames: this.anims.generateFrameNumbers('gui_normal_walk', { start: 0, end: 3 }),
-          frameRate: 8,
-          repeat: -1
-        });
 
         // Enemy
         this.enemy = this.add.rectangle(600, 500, 30, 50, 0xff00ff);
@@ -325,7 +309,7 @@
         } else {
           if (this.player.body.velocity.x !== 0) {
             // Walking
-            this.player.anims.play('walk', true);
+            this.player.setTexture('gui_normal_walk');
           } else {
             // Idle
             this.player.setTexture('gui_normal');
