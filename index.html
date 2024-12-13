@@ -298,59 +298,100 @@
     class TimeBreakScene extends Phaser.Scene {
       constructor() {
         super('TimeBreakScene');
-        this.enemyDead = false;
-        this.hasGun = false;
-        this.fragmentCams = [];
         
-        // Additional state variables
+        // Enemy state
+        this.enemyDead = false;
+        
+        // Player state
+        this.hasGun = false;
         this.direction = 'right'; // 'left' or 'right'
         this.isJumping = false;
         this.walkFrame = 0; // To alternate walking sprites
         this.walkTimer = 0; // Timer to control sprite switching
-      }
+        
+        // Fragmented Cameras
+        this.fragmentCams = [];
+        
+        // Character Variables
+        this.rick = null;
+        this.morty = null;
+        this.giullya = null;
+        
+        // Dialogue Text Variables
+        this.rickText = null;
+        this.mortyText = null;
+        this.giullyaText = null;
+        
+        // Gun Variable
+        this.gun = null;
+        
+        // Portals
+        this.portalLeft = null;
+        this.portalRight = null;
+        
+        // Bullets Group
+        this.bullets = null;
+        
+        // Other Game Objects
+        this.ground = null;
+        this.player = null;
+        this.enemy = null;
+        
+        // Input Keys
+        this.cursors = null;
+        this.shootKey = null;
+        
+        // Spawn Point
+        this.spawnPoint = { x: 100, y: 500 };
+    }
 
       preload() {
-        // Create bullet texture
-        const bulletCanvas = this.textures.createCanvas('bullet', 2, 2);
-        bulletCanvas.context.fillStyle = '#ffffff';
-        bulletCanvas.context.fillRect(0, 0, 2, 2);
-        bulletCanvas.refresh();
+      // Create bullet texture
+      const bulletCanvas = this.textures.createCanvas('bullet', 2, 2);
+      bulletCanvas.context.fillStyle = '#ffffff';
+      bulletCanvas.context.fillRect(0, 0, 2, 2);
+      bulletCanvas.refresh();
 
-        // Load player assets
-        // Idle/Normal Sprites
-        this.load.image('gui_normal_left', 'assets/gui_normal_left.png');
-        this.load.image('gui_normal_right', 'assets/gui_normal_right.png');
-        this.load.image('gui_normal_left_gun', 'assets/gui_normal_left_gun.png');
-        this.load.image('gui_normal_right_gun', 'assets/gui_normal_right_gun.png');
+      // Load player assets
+      // Idle/Normal Sprites
+      this.load.image('gui_normal_left', 'assets/gui_normal_left.png');
+      this.load.image('gui_normal_right', 'assets/gui_normal_right.png');
+      this.load.image('gui_normal_left_gun', 'assets/gui_normal_left_gun.png');
+      this.load.image('gui_normal_right_gun', 'assets/gui_normal_right_gun.png');
 
-        // Walking Sprites
-        this.load.image('gui_normal_walk_left', 'assets/gui_normal_walk_left.png');
-        this.load.image('gui_normal_walk_right', 'assets/gui_normal_walk_right.png');
-        this.load.image('gui_normal_walk_left_gun', 'assets/gui_normal_walk_left_gun.png');
-        this.load.image('gui_normal_walk_right_gun', 'assets/gui_normal_walk_right_gun.png');
+      // Walking Sprites
+      this.load.image('gui_normal_walk_left', 'assets/gui_normal_walk_left.png');
+      this.load.image('gui_normal_walk_right', 'assets/gui_normal_walk_right.png');
+      this.load.image('gui_normal_walk_left_gun', 'assets/gui_normal_walk_left_gun.png');
+      this.load.image('gui_normal_walk_right_gun', 'assets/gui_normal_walk_right_gun.png');
 
-        // Jumping Sprites
-        this.load.image('gui_normal_jump_left', 'assets/gui_normal_jump_left.png');
-        this.load.image('gui_normal_jump_right', 'assets/gui_normal_jump_right.png');
-        this.load.image('gui_normal_jump_left_gun', 'assets/gui_normal_jump_left_gun.png');
-        this.load.image('gui_normal_jump_right_gun', 'assets/gui_normal_jump_right_gun.png');
+      // Jumping Sprites
+      this.load.image('gui_normal_jump_left', 'assets/gui_normal_jump_left.png');
+      this.load.image('gui_normal_jump_right', 'assets/gui_normal_jump_right.png');
+      this.load.image('gui_normal_jump_left_gun', 'assets/gui_normal_jump_left_gun.png');
+      this.load.image('gui_normal_jump_right_gun', 'assets/gui_normal_jump_right_gun.png');
 
+      // Load Rick & Morty
+      this.load.image('rick_still_gun_left', 'assets/characters/rick_still_gun_left.png');
+      this.load.image('rick_middle_finger_left', 'assets/characters/rick_middle_finger_left.png');
+      this.load.image('rick_still_left', 'assets/characters/rick_still_left.png');
+      this.load.image('rick_walking_left', 'assets/characters/rick_walking_left.png');
+      this.load.image('rick_walking_right', 'assets/characters/rick_walking_right.png'); // Added
+      this.load.image('rick_still_right', 'assets/characters/rick_still_right.png');     // Added
 
-        // Load Rick & Morty
-        this.load.image('rick_still_gun_left', 'assets/characters/rick_still_gun_left.png');
-        this.load.image('rick_middle_finger_left', 'assets/characters/rick_middle_finger_left.png');
-        this.load.image('rick_still_left', 'assets/characters/rick_still_left.png');
-        this.load.image('rick_walking_left', 'assets/characters/rick_walking_left.png');
+      this.load.image('morty_middle_finger_left', 'assets/characters/morty_middle_finger_left.png');
+      this.load.image('morty_still_left', 'assets/characters/morty_still_left.png');
+      this.load.image('morty_walking_left', 'assets/characters/morty_walking_left.png');
+      this.load.image('morty_walking_right', 'assets/characters/morty_walking_right.png'); // Added
+      this.load.image('morty_still_right', 'assets/characters/morty_still_right.png');     // Added
 
-        this.load.image('morty_middle_finger_left', 'assets/characters/morty_middle_finger_left.png');
-        this.load.image('morty_still_left', 'assets/characters/morty_still_left.png');
-        this.load.image('morty_walking_left', 'assets/characters/morty_walking_left.png');
-
-        // Load Giullya
-        this.load.image('giullya_kissing_right', 'assets/characters/giullya_kissing_right.png');
-        this.load.image('giullya_still_right', 'assets/characters/giullya_still_right.png');
-        this.load.image('giullya_walking_right', 'assets/characters/giullya_walking_right.png');
-      }
+      // Load Giullya
+      this.load.image('giullya_kissing_right', 'assets/characters/giullya_kissing_right.png');
+      this.load.image('giullya_still_right', 'assets/characters/giullya_still_right.png');
+      this.load.image('giullya_walking_right', 'assets/characters/giullya_walking_right.png');
+      this.load.image('giullya_walking_left', 'assets/characters/giullya_walking_left.png');   // Added
+      this.load.image('giullya_still_left', 'assets/characters/giullya_still_left.png');       // Added
+  }
 
       create() {
         this.physics.world.setBounds(0, 0, 800, 600);
@@ -422,8 +463,8 @@
         this.portalRight.body.enable = false;
 
         this.physics.add.overlap(this.player, this.portalRight, this.enterRightPortal, null, this);
-      }
-
+    }
+      
       update(time, delta) {
         const speed = 160;
         const onGround = this.player.body.blocked.down;
@@ -433,90 +474,95 @@
 
         // Movement
         if (this.cursors.left.isDown) {
-          this.player.setVelocityX(-speed);
-          this.direction = 'left';
+            this.player.setVelocityX(-speed);
+            this.direction = 'left';
         } else if (this.cursors.right.isDown) {
-          this.player.setVelocityX(speed);
-          this.direction = 'right';
+            this.player.setVelocityX(speed);
+            this.direction = 'right';
         }
 
         // Jump
-        if ((this.cursors.up.isDown) && onGround) {
-          this.player.setVelocityY(-400);
-          this.isJumping = true;
+        if (this.cursors.up.isDown && onGround) {
+            this.player.setVelocityY(-400);
+            this.isJumping = true;
         }
 
         // Check if player is on ground to reset jumping state
         if (onGround && this.isJumping) {
-          this.isJumping = false;
-          // Reset walk timer when landing
-          this.walkTimer = 0;
-          this.walkFrame = 0;
+            this.isJumping = false;
+            // Reset walk timer when landing
+            this.walkTimer = 0;
+            this.walkFrame = 0;
         }
 
         // Handle shooting
         if (Phaser.Input.Keyboard.JustDown(this.shootKey) && this.hasGun) {
-          this.shootBullet();
+            this.shootBullet();
         }
 
-        // Update sprite based on state
+        // Update player sprite based on state
         this.updatePlayerSprite(delta);
         
-        // Enemy follow if alive
-        if (!this.enemyDead) {
-          if (this.player.x < this.enemy.x) {
-            this.enemy.body.setVelocityX(-100);
-          } else {
-            this.enemy.body.setVelocityX(100);
-          }
+        // Enemy follows the player if alive
+        if (!this.enemyDead && this.enemy) {
+            if (this.player.x < this.enemy.x) {
+                this.enemy.body.setVelocityX(-100);
+            } else {
+                this.enemy.body.setVelocityX(100);
+            }
         }
-      
-        // Update Rick's sprite
-        ({ walkFrame: this.rickWalkFrame, walkTimer: this.rickWalkTimer } = this.updateCharacterSprite(
-          this.rick,
-          this.rickDirection,
-          this.rickWalkFrame,
-          this.rickWalkTimer,
-          delta,
-          {
-            walkLeft: 'rick_walking_left',
-            walkRight: 'rick_walking_right', // Add right walking sprite if available
-            idleLeft: 'rick_still_left',
-            idleRight: 'rick_still_right' // Add right idle sprite if available
-          }
-        ));
 
-        // Update Morty's sprite
-        ({ walkFrame: this.mortyWalkFrame, walkTimer: this.mortyWalkTimer } = this.updateCharacterSprite(
-          this.morty,
-          this.mortyDirection,
-          this.mortyWalkFrame,
-          this.mortyWalkTimer,
-          delta,
-          {
-            walkLeft: 'morty_walking_left',
-            walkRight: 'morty_walking_right', // Add right walking sprite if available
-            idleLeft: 'morty_still_left',
-            idleRight: 'morty_still_right' // Add right idle sprite if available
-          }
-        ));
+        // Update Rick's sprite if he exists
+        if (this.rick) {
+            ({ walkFrame: this.rickWalkFrame, walkTimer: this.rickWalkTimer } = this.updateCharacterSprite(
+                this.rick,
+                this.rickDirection,
+                this.rickWalkFrame,
+                this.rickWalkTimer,
+                delta,
+                {
+                    walkLeft: 'rick_walking_left',
+                    walkRight: 'rick_walking_right',
+                    idleLeft: 'rick_still_left',
+                    idleRight: 'rick_still_right'
+                }
+            ));
+        }
 
-        // Update Giullya's sprite
-        ({ walkFrame: this.giullyaWalkFrame, walkTimer: this.giullyaWalkTimer } = this.updateCharacterSprite(
-          this.giullya,
-          this.giullyaDirection,
-          this.giullyaWalkFrame,
-          this.giullyaWalkTimer,
-          delta,
-          {
-            walkLeft: 'giullya_walking_left', // Add left walking sprite if available
-            walkRight: 'giullya_walking_right',
-            idleLeft: 'giullya_still_left',   // Add left idle sprite if available
-            idleRight: 'giullya_still_right'
-          }
-        ));
+        // Update Morty's sprite if he exists
+        if (this.morty) {
+            ({ walkFrame: this.mortyWalkFrame, walkTimer: this.mortyWalkTimer } = this.updateCharacterSprite(
+                this.morty,
+                this.mortyDirection,
+                this.mortyWalkFrame,
+                this.mortyWalkTimer,
+                delta,
+                {
+                    walkLeft: 'morty_walking_left',
+                    walkRight: 'morty_walking_right',
+                    idleLeft: 'morty_still_left',
+                    idleRight: 'morty_still_right'
+                }
+            ));
+        }
 
-      }
+        // Update Giullya's sprite if she exists
+        if (this.giullya) {
+            ({ walkFrame: this.giullyaWalkFrame, walkTimer: this.giullyaWalkTimer } = this.updateCharacterSprite(
+                this.giullya,
+                this.giullyaDirection,
+                this.giullyaWalkFrame,
+                this.giullyaWalkTimer,
+                delta,
+                {
+                    walkLeft: 'giullya_walking_left',
+                    walkRight: 'giullya_walking_right',
+                    idleLeft: 'giullya_still_left',
+                    idleRight: 'giullya_still_right'
+                }
+            ));
+        }
+    }
 
       updatePlayerSprite(delta) {
         // Update walk timer
@@ -575,32 +621,37 @@
     }
           
       updateCharacterSprite(character, direction, walkFrame, walkTimer, delta, spriteKeys) {
+        if (!character || !character.body) {
+            return { walkFrame, walkTimer };
+        }
+
         // Update walk timer
         walkTimer += delta;
 
         if (walkTimer >= 100) {
-          walkFrame = (walkFrame + 1) % 2; // Toggle between 0 and 1
-          walkTimer = 0;
+            walkFrame = (walkFrame + 1) % 2; // Toggle between 0 and 1
+            walkTimer = 0;
         }
 
         let spriteKey = '';
 
         if (character.body.velocity.x !== 0) {
-          // Walking animation
-          if (walkFrame === 0) {
-            spriteKey = direction === 'left' ? spriteKeys.walkLeft : spriteKeys.walkRight;
-          } else {
-            spriteKey = direction === 'left' ? spriteKeys.idleLeft : spriteKeys.idleRight;
-          }
+            // Walking animation
+            if (walkFrame === 0) {
+                spriteKey = direction === 'left' ? spriteKeys.walkLeft : spriteKeys.walkRight;
+            } else {
+                spriteKey = direction === 'left' ? spriteKeys.idleLeft : spriteKeys.idleRight;
+            }
         } else {
-          // Idle sprite
-          spriteKey = direction === 'left' ? spriteKeys.idleLeft : spriteKeys.idleRight;
+            // Idle sprite
+            spriteKey = direction === 'left' ? spriteKeys.idleLeft : spriteKeys.idleRight;
         }
 
         character.setTexture(spriteKey);
 
         return { walkFrame, walkTimer };
       }
+
 
       addGun(ground) {
         this.gun = this.add.rectangle(this.gunSpawnX, this.gunSpawnY, 20, 10, 0xffff00);
