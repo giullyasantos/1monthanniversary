@@ -335,8 +335,21 @@
         this.load.image('gui_normal_jump_left_gun', 'assets/gui_normal_jump_left_gun.png');
         this.load.image('gui_normal_jump_right_gun', 'assets/gui_normal_jump_right_gun.png');
 
-        // Load other assets as needed
-        this.load.image('gui_normal', 'assets/gui_normal.png'); // Default sprite if needed
+
+        // Load Rick & Morty
+        this.load.image('rick_still_gun_left', 'assets/characters/rick_still_gun_left.png');
+        this.load.image('rick_middle_finger_left', 'assets/characters/rick_middle_finger_left.png');
+        this.load.image('rick_still_left', 'assets/characters/rick_still_left.png');
+        this.load.image('rick_walking_left', 'assets/characters/rick_walking_left.png');
+
+        this.load.image('morty_middle_finger_left', 'assets/characters/morty_middle_finger_left.png');
+        this.load.image('morty_still_left', 'assets/characters/morty_still_left.png');
+        this.load.image('morty_walking_left', 'assets/characters/morty_walking_left.png');
+
+        // Load Giullya
+        this.load.image('giullya_kissing_right', 'assets/characters/giullya_kissing_right.png');
+        this.load.image('giullya_still_right', 'assets/characters/giullya_still_right.png');
+        this.load.image('giullya_walking_right', 'assets/characters/giullya_walking_right.png');
       }
 
       create() {
@@ -378,6 +391,21 @@
         // Input
         this.cursors = this.input.keyboard.createCursorKeys();
         this.shootKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+
+        // Rick's state
+        this.rickDirection = 'left';
+        this.rickWalkFrame = 0;
+        this.rickWalkTimer = 0;
+
+        // Morty's state
+        this.mortyDirection = 'left';
+        this.mortyWalkFrame = 0;
+        this.mortyWalkTimer = 0;
+
+        // Giullya's state
+        this.giullyaDirection = 'right';
+        this.giullyaWalkFrame = 0;
+        this.giullyaWalkTimer = 0;
 
         // Respawn point
         this.spawnPoint = { x: 100, y: 500 };
@@ -442,6 +470,52 @@
             this.enemy.body.setVelocityX(100);
           }
         }
+      
+        // Update Rick's sprite
+        ({ walkFrame: this.rickWalkFrame, walkTimer: this.rickWalkTimer } = this.updateCharacterSprite(
+          this.rick,
+          this.rickDirection,
+          this.rickWalkFrame,
+          this.rickWalkTimer,
+          delta,
+          {
+            walkLeft: 'rick_walking_left',
+            walkRight: 'rick_walking_right', // Add right walking sprite if available
+            idleLeft: 'rick_still_left',
+            idleRight: 'rick_still_right' // Add right idle sprite if available
+          }
+        ));
+
+        // Update Morty's sprite
+        ({ walkFrame: this.mortyWalkFrame, walkTimer: this.mortyWalkTimer } = this.updateCharacterSprite(
+          this.morty,
+          this.mortyDirection,
+          this.mortyWalkFrame,
+          this.mortyWalkTimer,
+          delta,
+          {
+            walkLeft: 'morty_walking_left',
+            walkRight: 'morty_walking_right', // Add right walking sprite if available
+            idleLeft: 'morty_still_left',
+            idleRight: 'morty_still_right' // Add right idle sprite if available
+          }
+        ));
+
+        // Update Giullya's sprite
+        ({ walkFrame: this.giullyaWalkFrame, walkTimer: this.giullyaWalkTimer } = this.updateCharacterSprite(
+          this.giullya,
+          this.giullyaDirection,
+          this.giullyaWalkFrame,
+          this.giullyaWalkTimer,
+          delta,
+          {
+            walkLeft: 'giullya_walking_left', // Add left walking sprite if available
+            walkRight: 'giullya_walking_right',
+            idleLeft: 'giullya_still_left',   // Add left idle sprite if available
+            idleRight: 'giullya_still_right'
+          }
+        ));
+
       }
 
       updatePlayerSprite(delta) {
@@ -499,7 +573,35 @@
             this.walkTimer = 0;
         }
     }
-      
+          
+      updateCharacterSprite(character, direction, walkFrame, walkTimer, delta, spriteKeys) {
+        // Update walk timer
+        walkTimer += delta;
+
+        if (walkTimer >= 100) {
+          walkFrame = (walkFrame + 1) % 2; // Toggle between 0 and 1
+          walkTimer = 0;
+        }
+
+        let spriteKey = '';
+
+        if (character.body.velocity.x !== 0) {
+          // Walking animation
+          if (walkFrame === 0) {
+            spriteKey = direction === 'left' ? spriteKeys.walkLeft : spriteKeys.walkRight;
+          } else {
+            spriteKey = direction === 'left' ? spriteKeys.idleLeft : spriteKeys.idleRight;
+          }
+        } else {
+          // Idle sprite
+          spriteKey = direction === 'left' ? spriteKeys.idleLeft : spriteKeys.idleRight;
+        }
+
+        character.setTexture(spriteKey);
+
+        return { walkFrame, walkTimer };
+      }
+
       addGun(ground) {
         this.gun = this.add.rectangle(this.gunSpawnX, this.gunSpawnY, 20, 10, 0xffff00);
         this.physics.add.existing(this.gun);
@@ -571,8 +673,10 @@
 
         // Rick & Morty appear at ground level and move in
         this.time.delayedCall(3000, () => {
-          this.rick = this.add.rectangle(900, 500, 30, 50, 0x0000ff);
-          this.morty = this.add.rectangle(950, 500, 30, 50, 0xffff00);
+          this.rick = this.physics.add.sprite(100, 500, 'rick_still_left');
+          this.morty = this.physics.add.sprite(100, 500, 'morty_still_left');
+          this.rick.setScale(0.5);
+          this.morty.setScale(0.5);
 
           this.physics.add.existing(this.rick);
           this.physics.add.existing(this.morty);
@@ -609,20 +713,21 @@
 
         // Another character comes from left at ground level after 8s
         this.time.delayedCall(8000, () => {
-          this.newChar = this.add.rectangle(-50, 500, 30, 50, 0xff69b4);
-          this.physics.add.existing(this.newChar);
-          this.newChar.body.setCollideWorldBounds(true);
-          this.physics.add.collider(this.newChar, this.ground);
+          this.giullya = this.physics.add.sprite(100, 500, 'giullya_still_right');
+          this.giullya.setScale(0.5);
+          this.physics.add.existing(this.giullya);
+          this.giullya.body.setCollideWorldBounds(true);
+          this.physics.add.collider(this.giullya, this.ground);
 
-          // Move the new character to the player
+          // Move the giullya to the player
           this.tweens.add({
-            targets: this.newChar,
-            x: this.player.x,
+            targets: this.giullya,
+            x: this.player.x - 30,
             duration: 2000,
             ease: 'Linear',
             onComplete: () => {
               // Show kiss text
-              this.newCharText = this.add.text(400, 340, "??? aparece e beija o jogador", {
+              this.giullyaText = this.add.text(400, 340, "??? aparece e beija o jogador", {
                 font: "16px Arial", fill: "#ff69b4", align: "center"
               }).setOrigin(0.5).setScrollFactor(0);
 
@@ -672,7 +777,7 @@
                   // Close the left portal
                   this.portalLeft.visible = false;
 
-                  if (this.newCharText) this.newCharText.setText("??? : Vamos pra um mundo mágico agora!");
+                  if (this.giullyaText) this.giullyaText.setText("??? : Vamos pra um mundo mágico agora!");
 
                   // Show right portal after 2 more seconds (19s total)
                   this.time.delayedCall(2000, () => {
@@ -688,7 +793,7 @@
       }
 
       enterRightPortal(player, portal) {
-        // When player (and presumably newChar is near) touches the right portal, go to next scene
+        // When player (and presumably giullya is near) touches the right portal, go to next scene
         this.scene.start('RickMortyMessage');
       }
     }
@@ -703,7 +808,7 @@
       height: 600,
       backgroundColor: "#000000",
       scene: [
-        StartScene, RickMortyScene, RickMortyMessage, TimeBreakScene
+       TimeBreakScene
       ],
       physics: {
         default: 'arcade',
