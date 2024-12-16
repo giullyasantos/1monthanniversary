@@ -19,6 +19,254 @@
   </style>
   <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
   <script>
+    
+    // Player
+    class Player extends Phaser.Physics.Arcade.Sprite {
+        constructor(scene, x, y, textures) {
+            super(scene, x, y, textures.idleRight);
+            scene.add.existing(this);
+            scene.physics.add.existing(this);
+
+            // Player Properties
+            this.setCollideWorldBounds(true);
+            this.setScale(0.05);
+
+            // State Variables
+            this.hasGun = false;
+            this.direction = 'right'; // 'left' or 'right'
+            this.isJumping = false;
+            this.walkFrame = 0;
+            this.walkTimer = 0;
+
+            // Textures Mapping
+            this.texturesMap = textures;
+
+            // Bullets Group
+            this.bullets = scene.physics.add.group({
+                defaultKey: 'bullet',
+                maxSize: 50
+            });
+
+            // Audio
+            this.shootSound = scene.sound.add('shoot');
+
+            // Input Keys
+            this.cursors = scene.input.keyboard.createCursorKeys();
+            this.shootKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+
+            // Colliders for Bullets and Enemies
+            scene.physics.add.overlap(this.bullets, scene.enemies, scene.handleBulletHit, null, scene);
+            scene.physics.add.overlap(this, scene.enemies, scene.handlePlayerHit, null, scene);
+        }
+
+        update(delta) {
+            const speed = 160;
+            const onGround = this.body.blocked.down;
+
+            // Reset velocity
+            this.setVelocityX(0);
+
+            // Movement
+            if (this.cursors.left.isDown) {
+                this.setVelocityX(-speed);
+                this.direction = 'left';
+            } else if (this.cursors.right.isDown) {
+                this.setVelocityX(speed);
+                this.direction = 'right';
+            }
+
+            // Jump
+            if (this.cursors.up.isDown && onGround) {
+                this.setVelocityY(-400);
+                this.isJumping = true;
+            }
+
+            // Reset jumping state
+            if (onGround && this.isJumping) {
+                this.isJumping = false;
+                this.walkTimer = 0;
+                this.walkFrame = 0;
+            }
+
+            // Handle Shooting
+            if (Phaser.Input.Keyboard.JustDown(this.shootKey) && this.hasGun) {
+                this.shootBullet();
+            }
+
+            // Update Sprite based on State
+            this.updateSprite(delta);
+        }
+
+        shootBullet() {
+            const offsetX = this.direction === 'right' ? 20 : -20;
+            const bullet = this.bullets.create(this.x + offsetX, this.y, 'bullet');
+
+            if (bullet) {
+                bullet.setActive(true);
+                bullet.setVisible(true);
+                bullet.setDisplaySize(10, 5);
+                bullet.body.setVelocityX(this.direction === 'right' ? 400 : -400);
+                this.shootSound.play();
+
+                // Bullet Lifespan
+                this.scene.time.delayedCall(2000, () => {
+                    if (bullet.active) {
+                        this.bullets.killAndHide(bullet);
+                        bullet.body.reset(0, 0);
+                    }
+                }, [], this);
+            }
+        }
+
+        updateSprite(delta) {
+            this.walkTimer += delta;
+
+            let spriteKey = '';
+
+            if (this.isJumping) {
+                // Jumping Sprite
+                spriteKey = this.direction === 'left' 
+                    ? (this.hasGun ? this.texturesMap.jumpLeftGun : this.texturesMap.jumpLeft) 
+                    : (this.hasGun ? this.texturesMap.jumpRightGun : this.texturesMap.jumpRight);
+                this.setTexture(spriteKey);
+                return;
+            }
+
+            if (this.body.velocity.x !== 0) {
+                // Walking Animation
+                if (this.walkTimer >= 100) { // Change sprite every 100ms
+                    this.walkFrame = (this.walkFrame + 1) % 2;
+                    this.walkTimer = 0;
+                }
+
+                spriteKey = this.direction === 'left' 
+                    ? (this.walkFrame === 0 ? this.texturesMap.walkLeftGun : this.texturesMap.idleLeftGun) 
+                    : (this.walkFrame === 0 ? this.texturesMap.walkRightGun : this.texturesMap.idleRightGun);
+
+                if (!this.hasGun) {
+                    spriteKey = this.direction === 'left' 
+                        ? (this.walkFrame === 0 ? this.texturesMap.walkLeft : this.texturesMap.idleLeft) 
+                        : (this.walkFrame === 0 ? this.texturesMap.walkRight : this.texturesMap.idleRight);
+                }
+
+                this.setTexture(spriteKey);
+            } else {
+                // Idle Sprite
+                spriteKey = this.direction === 'left' 
+                    ? (this.hasGun ? this.texturesMap.idleLeftGun : this.texturesMap.idleLeft) 
+                    : (this.hasGun ? this.texturesMap.idleRightGun : this.texturesMap.idleRight);
+                this.setTexture(spriteKey);
+                this.walkFrame = 0;
+                this.walkTimer = 0;
+            }
+        }
+    }
+
+    // BaseScene
+    class BaseScene extends Phaser.Scene {
+        constructor(key) {
+            super(key);
+            this.player = null;
+            this.enemies = null;
+            this.ground = null;
+            this.fragmentCams = [];
+        }
+
+        preload() {
+            // Load shared assets if any
+            // Example: Player, bullets, particles
+            // However, specific assets are loaded in individual scenes
+        }
+
+        create() {
+            // Set World Bounds and Gravity
+            this.physics.world.setBounds(0, 0, 800, 600);
+            this.physics.world.gravity.y = 500;
+
+            // Ground Setup
+            this.ground = this.add.rectangle(400, 590, 800, 20, 0x654321);
+            this.physics.add.existing(this.ground, true);
+
+            // Enemies Group
+            this.enemies = this.physics.add.group();
+            this.physics.add.collider(this.enemies, this.ground);
+
+            // Player Textures Mapping
+            this.playerTextures = {
+                idleLeft: 'gui_normal_left',
+                idleRight: 'gui_normal_right',
+                walkLeft: 'gui_normal_walk_left',
+                walkRight: 'gui_normal_walk_right',
+                jumpLeft: 'gui_normal_jump_left',
+                jumpRight: 'gui_normal_jump_right',
+                idleLeftGun: 'gui_normal_left_gun',
+                idleRightGun: 'gui_normal_right_gun',
+                walkLeftGun: 'gui_normal_walk_left_gun',
+                walkRightGun: 'gui_normal_walk_right_gun',
+                jumpLeftGun: 'gui_normal_jump_left_gun',
+                jumpRightGun: 'gui_normal_jump_right_gun'
+            };
+
+            // Create Player Instance
+            this.player = new Player(this, 100, 500, this.playerTextures);
+            this.physics.add.collider(this.player, this.ground);
+
+            // Colliders and Overlaps for Player and Enemies
+            this.physics.add.overlap(this.player.bullets, this.enemies, this.handleBulletHit, null, this);
+            this.physics.add.overlap(this.player, this.enemies, this.handlePlayerHit, null, this);
+        }
+
+        update(time, delta) {
+            if (this.player) {
+                this.player.update(delta);
+            }
+
+            // Update enemies or other shared elements here
+        }
+
+        // Handle Bullet and Enemy Collision
+        handleBulletHit(bullet, enemy) {
+            bullet.destroy();
+            enemy.destroy();
+            // Play hit sound, update score, etc.
+        }
+
+        // Handle Player and Enemy Collision
+        handlePlayerHit(player, enemy) {
+            if (!player.hasGun) return; // Example condition
+            player.hasGun = false;
+            player.setPosition(100, 500); // Respawn position
+            // Possibly show a message or handle health
+        }
+
+        // Utility Function: Emit Particle Burst
+        emitParticleBurst(x, y) {
+            const particleCount = 20; // Number of particles per burst
+            for (let i = 0; i < particleCount; i++) {
+                const angle = Phaser.Math.Between(0, 360);
+                const speed = Phaser.Math.Between(50, 150);
+                const velocityX = Math.cos(Phaser.Math.DegToRad(angle)) * speed;
+                const velocityY = Math.sin(Phaser.Math.DegToRad(angle)) * speed;
+
+                const particle = this.physics.add.sprite(x, y, 'particle');
+                particle.body.setVelocity(velocityX, velocityY);
+                particle.body.setAllowGravity(false);
+
+                // Animate particle scaling and fading
+                this.tweens.add({
+                    targets: particle,
+                    alpha: 0,
+                    scale: { from: 1, to: 0 },
+                    duration: 500,
+                    onComplete: () => {
+                        particle.destroy();
+                    }
+                });
+            }
+        }
+    }
+
+
     // =============================
     // SCENE 1 - Start
     // =============================
@@ -847,6 +1095,14 @@
         // When player (and presumably giullya is near) touches the right portal, go to next scene
         this.scene.start('RickMortyMessage');
       }
+    }
+
+
+    class KillPickleRick extends Phaser.Scene {
+      constructor() {
+        super('TimeBreakScene');
+      }
+
     }
 
 
