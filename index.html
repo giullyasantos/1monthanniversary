@@ -19,253 +19,283 @@
   </style>
   <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
   <script>
-    
-    // Player
-    class Player extends Phaser.Physics.Arcade.Sprite {
-        constructor(scene, x, y, textures) {
-            super(scene, x, y, textures.idleRight);
-            scene.add.existing(this);
-            scene.physics.add.existing(this);
 
-            // Player Properties
-            this.setCollideWorldBounds(true);
-            this.setScale(0.05);
+    // BaseCharacter.js
+    class BaseCharacter extends Phaser.Physics.Arcade.Sprite {
+      constructor(scene, x, y, textureKeys, config) {
+        super(scene, x, y, textureKeys.idleRight);
+        scene.add.existing(this);
+        scene.physics.add.existing(this);
 
-            // State Variables
-            this.hasGun = false;
-            this.direction = 'right'; // 'left' or 'right'
-            this.isJumping = false;
-            this.walkFrame = 0;
+        this.textureKeys = textureKeys;
+        this.config = config;
+        this.direction = 'right';
+        this.isJumping = false;
+        this.walkFrame = 0;
+        this.walkTimer = 0;
+
+        this.setCollideWorldBounds(true);
+        if (config.scale) this.setScale(config.scale);
+
+        this.cursors = null; // Will be assigned externally
+      }
+
+      updateMovement(delta) {
+        if (!this.cursors) return;
+
+        const speed = this.config.speed || 160;
+        const onGround = this.body.blocked.down;
+
+        this.setVelocityX(0);
+
+        if (this.cursors.left.isDown) {
+          this.setVelocityX(-speed);
+          this.direction = 'left';
+        } else if (this.cursors.right.isDown) {
+          this.setVelocityX(speed);
+          this.direction = 'right';
+        }
+
+        if (this.cursors.up.isDown && onGround) {
+          this.setVelocityY(-400);
+          this.isJumping = true;
+        }
+
+        if (onGround && this.isJumping) {
+          this.isJumping = false;
+          this.walkTimer = 0;
+          this.walkFrame = 0;
+        }
+
+        this.updateSprite(delta);
+      }
+
+      updateSprite(delta) {
+        this.walkTimer += delta;
+        let spriteKey = '';
+
+        if (this.isJumping) {
+          spriteKey = this.direction === 'left' 
+            ? this.textureKeys.jumpLeft 
+            : this.textureKeys.jumpRight;
+          this.setTexture(spriteKey);
+          return;
+        }
+
+        if (this.body.velocity.x !== 0) {
+          if (this.walkTimer >= 100) {
+            this.walkFrame = (this.walkFrame + 1) % 2;
             this.walkTimer = 0;
+          }
 
-            // Textures Mapping
-            this.texturesMap = textures;
-
-            // Bullets Group
-            this.bullets = scene.physics.add.group({
-                defaultKey: 'bullet',
-                maxSize: 50
-            });
-
-            // Audio
-            this.shootSound = scene.sound.add('shoot');
-
-            // Input Keys
-            this.cursors = scene.input.keyboard.createCursorKeys();
-            this.shootKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-
-            // Colliders for Bullets and Enemies
-            scene.physics.add.overlap(this.bullets, scene.enemies, scene.handleBulletHit, null, scene);
-            scene.physics.add.overlap(this, scene.enemies, scene.handlePlayerHit, null, scene);
+          if (this.walkFrame === 0) {
+            spriteKey = this.direction === 'left' 
+              ? this.textureKeys.walkLeft 
+              : this.textureKeys.walkRight;
+          } else {
+            spriteKey = this.direction === 'left' 
+              ? this.textureKeys.idleLeft 
+              : this.textureKeys.idleRight;
+          }
+        } else {
+          spriteKey = this.direction === 'left' 
+            ? this.textureKeys.idleLeft 
+            : this.textureKeys.idleRight;
+          this.walkFrame = 0;
+          this.walkTimer = 0;
         }
 
-        update(delta) {
-            const speed = 160;
-            const onGround = this.body.blocked.down;
-
-            // Reset velocity
-            this.setVelocityX(0);
-
-            // Movement
-            if (this.cursors.left.isDown) {
-                this.setVelocityX(-speed);
-                this.direction = 'left';
-            } else if (this.cursors.right.isDown) {
-                this.setVelocityX(speed);
-                this.direction = 'right';
-            }
-
-            // Jump
-            if (this.cursors.up.isDown && onGround) {
-                this.setVelocityY(-400);
-                this.isJumping = true;
-            }
-
-            // Reset jumping state
-            if (onGround && this.isJumping) {
-                this.isJumping = false;
-                this.walkTimer = 0;
-                this.walkFrame = 0;
-            }
-
-            // Handle Shooting
-            if (Phaser.Input.Keyboard.JustDown(this.shootKey) && this.hasGun) {
-                this.shootBullet();
-            }
-
-            // Update Sprite based on State
-            this.updateSprite(delta);
-        }
-
-        shootBullet() {
-            const offsetX = this.direction === 'right' ? 20 : -20;
-            const bullet = this.bullets.create(this.x + offsetX, this.y, 'bullet');
-
-            if (bullet) {
-                bullet.setActive(true);
-                bullet.setVisible(true);
-                bullet.setDisplaySize(10, 5);
-                bullet.body.setVelocityX(this.direction === 'right' ? 400 : -400);
-                this.shootSound.play();
-
-                // Bullet Lifespan
-                this.scene.time.delayedCall(2000, () => {
-                    if (bullet.active) {
-                        this.bullets.killAndHide(bullet);
-                        bullet.body.reset(0, 0);
-                    }
-                }, [], this);
-            }
-        }
-
-        updateSprite(delta) {
-            this.walkTimer += delta;
-
-            let spriteKey = '';
-
-            if (this.isJumping) {
-                // Jumping Sprite
-                spriteKey = this.direction === 'left' 
-                    ? (this.hasGun ? this.texturesMap.jumpLeftGun : this.texturesMap.jumpLeft) 
-                    : (this.hasGun ? this.texturesMap.jumpRightGun : this.texturesMap.jumpRight);
-                this.setTexture(spriteKey);
-                return;
-            }
-
-            if (this.body.velocity.x !== 0) {
-                // Walking Animation
-                if (this.walkTimer >= 100) { // Change sprite every 100ms
-                    this.walkFrame = (this.walkFrame + 1) % 2;
-                    this.walkTimer = 0;
-                }
-
-                spriteKey = this.direction === 'left' 
-                    ? (this.walkFrame === 0 ? this.texturesMap.walkLeftGun : this.texturesMap.idleLeftGun) 
-                    : (this.walkFrame === 0 ? this.texturesMap.walkRightGun : this.texturesMap.idleRightGun);
-
-                if (!this.hasGun) {
-                    spriteKey = this.direction === 'left' 
-                        ? (this.walkFrame === 0 ? this.texturesMap.walkLeft : this.texturesMap.idleLeft) 
-                        : (this.walkFrame === 0 ? this.texturesMap.walkRight : this.texturesMap.idleRight);
-                }
-
-                this.setTexture(spriteKey);
-            } else {
-                // Idle Sprite
-                spriteKey = this.direction === 'left' 
-                    ? (this.hasGun ? this.texturesMap.idleLeftGun : this.texturesMap.idleLeft) 
-                    : (this.hasGun ? this.texturesMap.idleRightGun : this.texturesMap.idleRight);
-                this.setTexture(spriteKey);
-                this.walkFrame = 0;
-                this.walkTimer = 0;
-            }
-        }
+        this.setTexture(spriteKey);
+      }
     }
+    // Player.js
+    class Player extends BaseCharacter {
+      // Static method to return all texture keys for the player
+      static getTextureKeys() {
+        return {
+          idleLeft: 'gui_normal_left',
+          idleRight: 'gui_normal_right',
+          walkLeft: 'gui_normal_walk_left',
+          walkRight: 'gui_normal_walk_right',
+          jumpLeft: 'gui_normal_jump_left',
+          jumpRight: 'gui_normal_jump_right',
+          idleLeftGun: 'gui_normal_left_gun',
+          idleRightGun: 'gui_normal_right_gun',
+          walkLeftGun: 'gui_normal_walk_left_gun',
+          walkRightGun: 'gui_normal_walk_right_gun',
+          jumpLeftGun: 'gui_normal_jump_left_gun',
+          jumpRightGun: 'gui_normal_jump_right_gun'
+        };
+      }
 
-    // BaseScene
-    class BaseScene extends Phaser.Scene {
-        constructor(key) {
-            super(key);
-            this.player = null;
-            this.enemies = null;
-            this.ground = null;
-            this.fragmentCams = [];
+      static preload(scene) {
+        // Normal
+        scene.load.image('gui_normal_left', 'assets/gui_normal_left.png');
+        scene.load.image('gui_normal_right', 'assets/gui_normal_right.png');
+        scene.load.image('gui_normal_walk_left', 'assets/gui_normal_walk_left.png');
+        scene.load.image('gui_normal_walk_right', 'assets/gui_normal_walk_right.png');
+        scene.load.image('gui_normal_jump_left', 'assets/gui_normal_jump_left.png');
+        scene.load.image('gui_normal_jump_right', 'assets/gui_normal_jump_right.png');
+
+        // Gun Versions
+        scene.load.image('gui_normal_left_gun', 'assets/gui_normal_left_gun.png');
+        scene.load.image('gui_normal_right_gun', 'assets/gui_normal_right_gun.png');
+        scene.load.image('gui_normal_walk_left_gun', 'assets/gui_normal_walk_left_gun.png');
+        scene.load.image('gui_normal_walk_right_gun', 'assets/gui_normal_walk_right_gun.png');
+        scene.load.image('gui_normal_jump_left_gun', 'assets/gui_normal_jump_left_gun.png');
+        scene.load.image('gui_normal_jump_right_gun', 'assets/gui_normal_jump_right_gun.png');
+
+        // Bullet
+        const bulletCanvas = scene.textures.createCanvas('bullet', 2, 2);
+        bulletCanvas.context.fillStyle = '#ffffff';
+        bulletCanvas.context.fillRect(0, 0, 2, 2);
+        bulletCanvas.refresh();
+      }
+
+      constructor(scene, x, y, config) {
+        const textureKeys = Player.getTextureKeys();
+        super(scene, x, y, textureKeys, config);
+        this.hasGun = false;
+        this.bullets = scene.physics.add.group({ defaultKey: 'bullet', maxSize: 50 });
+        this.shootKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+      }
+
+      updateSprite(delta) {
+        this.walkTimer += delta;
+        let spriteKey = '';
+
+        // Check if we have a gun to decide which textures to use
+        const isGun = this.hasGun;
+        
+        if (this.isJumping) {
+          spriteKey = this.direction === 'left' 
+            ? (isGun ? this.textureKeys.jumpLeftGun : this.textureKeys.jumpLeft) 
+            : (isGun ? this.textureKeys.jumpRightGun : this.textureKeys.jumpRight);
+          this.setTexture(spriteKey);
+          return;
         }
 
-        preload() {
-            // Load shared assets if any
-            // Example: Player, bullets, particles
-            // However, specific assets are loaded in individual scenes
+        if (this.body.velocity.x !== 0) {
+          if (this.walkTimer >= 100) {
+            this.walkFrame = (this.walkFrame + 1) % 2;
+            this.walkTimer = 0;
+          }
+
+          if (this.walkFrame === 0) {
+            spriteKey = this.direction === 'left'
+              ? (isGun ? this.textureKeys.walkLeftGun : this.textureKeys.walkLeft)
+              : (isGun ? this.textureKeys.walkRightGun : this.textureKeys.walkRight);
+          } else {
+            spriteKey = this.direction === 'left'
+              ? (isGun ? this.textureKeys.idleLeftGun : this.textureKeys.idleLeft)
+              : (isGun ? this.textureKeys.idleRightGun : this.textureKeys.idleRight);
+          }
+        } else {
+          spriteKey = this.direction === 'left'
+            ? (isGun ? this.textureKeys.idleLeftGun : this.textureKeys.idleLeft)
+            : (isGun ? this.textureKeys.idleRightGun : this.textureKeys.idleRight);
+          
+          this.walkFrame = 0;
+          this.walkTimer = 0;
         }
 
-        create() {
-            // Set World Bounds and Gravity
-            this.physics.world.setBounds(0, 0, 800, 600);
-            this.physics.world.gravity.y = 500;
+        this.setTexture(spriteKey);
+      }
 
-            // Ground Setup
-            this.ground = this.add.rectangle(400, 590, 800, 20, 0x654321);
-            this.physics.add.existing(this.ground, true);
-
-            // Enemies Group
-            this.enemies = this.physics.add.group();
-            this.physics.add.collider(this.enemies, this.ground);
-
-            // Player Textures Mapping
-            this.playerTextures = {
-                idleLeft: 'gui_normal_left',
-                idleRight: 'gui_normal_right',
-                walkLeft: 'gui_normal_walk_left',
-                walkRight: 'gui_normal_walk_right',
-                jumpLeft: 'gui_normal_jump_left',
-                jumpRight: 'gui_normal_jump_right',
-                idleLeftGun: 'gui_normal_left_gun',
-                idleRightGun: 'gui_normal_right_gun',
-                walkLeftGun: 'gui_normal_walk_left_gun',
-                walkRightGun: 'gui_normal_walk_right_gun',
-                jumpLeftGun: 'gui_normal_jump_left_gun',
-                jumpRightGun: 'gui_normal_jump_right_gun'
-            };
-
-            // Create Player Instance
-            this.player = new Player(this, 100, 500, this.playerTextures);
-            this.physics.add.collider(this.player, this.ground);
-
-            // Colliders and Overlaps for Player and Enemies
-            this.physics.add.overlap(this.player.bullets, this.enemies, this.handleBulletHit, null, this);
-            this.physics.add.overlap(this.player, this.enemies, this.handlePlayerHit, null, this);
+      updateMovement(delta) {
+        super.updateMovement(delta);
+        if (Phaser.Input.Keyboard.JustDown(this.shootKey) && this.hasGun) {
+          this.shootBullet();
         }
+      }
 
-        update(time, delta) {
-            if (this.player) {
-                this.player.update(delta);
+      shootBullet() {
+        const offsetX = this.direction === 'right' ? 20 : -20;
+        const bullet = this.bullets.create(this.x + offsetX, this.y, 'bullet');
+        if (bullet) {
+          bullet.setDisplaySize(10, 5);
+          bullet.body.setVelocityX(this.direction === 'right' ? 400 : -400);
+
+          this.scene.time.delayedCall(2000, () => {
+            if (bullet.active) {
+              this.bullets.killAndHide(bullet);
+              bullet.body.reset(0, 0);
             }
-
-            // Update enemies or other shared elements here
+          });
         }
-
-        // Handle Bullet and Enemy Collision
-        handleBulletHit(bullet, enemy) {
-            bullet.destroy();
-            enemy.destroy();
-            // Play hit sound, update score, etc.
-        }
-
-        // Handle Player and Enemy Collision
-        handlePlayerHit(player, enemy) {
-            if (!player.hasGun) return; // Example condition
-            player.hasGun = false;
-            player.setPosition(100, 500); // Respawn position
-            // Possibly show a message or handle health
-        }
-
-        // Utility Function: Emit Particle Burst
-        emitParticleBurst(x, y) {
-            const particleCount = 20; // Number of particles per burst
-            for (let i = 0; i < particleCount; i++) {
-                const angle = Phaser.Math.Between(0, 360);
-                const speed = Phaser.Math.Between(50, 150);
-                const velocityX = Math.cos(Phaser.Math.DegToRad(angle)) * speed;
-                const velocityY = Math.sin(Phaser.Math.DegToRad(angle)) * speed;
-
-                const particle = this.physics.add.sprite(x, y, 'particle');
-                particle.body.setVelocity(velocityX, velocityY);
-                particle.body.setAllowGravity(false);
-
-                // Animate particle scaling and fading
-                this.tweens.add({
-                    targets: particle,
-                    alpha: 0,
-                    scale: { from: 1, to: 0 },
-                    duration: 500,
-                    onComplete: () => {
-                        particle.destroy();
-                    }
-                });
-            }
-        }
+      }
     }
+    // Rick.js
+    class Rick extends BaseCharacter {
+      static preload(scene) {
+        scene.load.image('rick_still_left', 'assets/characters/rick_still_left.png');
+        scene.load.image('rick_still_right', 'assets/characters/rick_still_right.png');
+        scene.load.image('rick_walking_left', 'assets/characters/rick_walking_left.png');
+        scene.load.image('rick_walking_right', 'assets/characters/rick_walking_right.png');
+      }
 
+      // Add a static method to provide texture keys
+      static getTextureKeys() {
+        return {
+          idleLeft: 'rick_still_left',
+          idleRight: 'rick_still_right',
+          walkLeft: 'rick_walking_left',
+          walkRight: 'rick_walking_right',
+        };
+      }
+
+      constructor(scene, x, y, config) {
+        // Use Rick.getTextureKeys() directly, no need to pass textureKeys from outside
+        super(scene, x, y, Rick.getTextureKeys(), config);
+      }
+    }
+    // Morty.js
+    class Morty extends BaseCharacter {
+      static preload(scene) {
+        scene.load.image('morty_still_left', 'assets/characters/morty_still_left.png');
+        scene.load.image('morty_still_right', 'assets/characters/morty_still_right.png');
+        scene.load.image('morty_walking_left', 'assets/characters/morty_walking_left.png');
+        scene.load.image('morty_walking_right', 'assets/characters/morty_walking_right.png');
+      }
+      static getTextureKeys() {
+        return {
+          idleLeft: 'morty_still_left',
+          idleRight: 'morty_still_right',
+          walkLeft: 'morty_walking_left',
+          walkRight: 'morty_walking_right',
+        };
+      }
+
+      constructor(scene, x, y, config) {
+        super(scene, x, y, Morty.getTextureKeys(), config);
+      }
+    }
+    // Giullya.js
+    class Giullya extends BaseCharacter {
+      static preload(scene) {
+        scene.load.image('giullya_still_left', 'assets/characters/giullya_still_left.png');
+        scene.load.image('giullya_still_right', 'assets/characters/giullya_still_right.png');
+        scene.load.image('giullya_walking_left', 'assets/characters/giullya_walking_left.png');
+        scene.load.image('giullya_walking_right', 'assets/characters/giullya_walking_right.png');
+        scene.load.image('giullya_jump_left', 'assets/characters/giullya_still_left.png');
+        scene.load.image('giullya_jump_right', 'assets/characters/giullya_still_right.png');
+      }
+
+      static getTextureKeys() {
+        return {
+          idleLeft: 'giullya_still_left',
+          idleRight: 'giullya_still_right',
+          walkLeft: 'giullya_walking_left',
+          walkRight: 'giullya_walking_right',
+          jumpLeft: 'giullya_jump_left',
+          jumpRight: 'giullya_jump_right',
+        };
+      }
+
+      constructor(scene, x, y, config) {
+        super(scene, x, y, Giullya.getTextureKeys(), config);
+      }
+    }
 
     // =============================
     // SCENE 1 - Start
@@ -315,23 +345,17 @@
         super('RickMortyScene');
         this.blockHit = false;
         this.mushroomCollected = false;
-        this.facing = 'right'; // keep track of current facing direction: 'left' or 'right'
-        this.walkFrameCounter = 0; // a counter to help us alternate walking sprites
       }
 
       preload() {
-        // Load all directional sprites
-        this.load.image('gui_normal_left', 'assets/gui_normal_left.png');
-        this.load.image('gui_normal_right', 'assets/gui_normal_right.png');
-        this.load.image('gui_normal_walk_left', 'assets/gui_normal_walk_left.png');
-        this.load.image('gui_normal_walk_right', 'assets/gui_normal_walk_right.png');
-        this.load.image('gui_normal_jump_left', 'assets/gui_normal_jump_left.png');
-        this.load.image('gui_normal_jump_right', 'assets/gui_normal_jump_right.png');
-      
+        // Preload the player assets
+        Player.preload(this);
+
+        // Particle texture
         const graphics = this.make.graphics({ x: 0, y: 0, add: false });
-          graphics.fillStyle(0xffffff, 1);
-          graphics.fillCircle(2, 2, 2);
-          graphics.generateTexture('particle', 4, 4);
+        graphics.fillStyle(0xffffff, 1);
+        graphics.fillCircle(2, 2, 2);
+        graphics.generateTexture('particle', 4, 4);
       }
 
       create() {
@@ -342,11 +366,13 @@
         const ground = this.add.rectangle(400, 590, 800, 20, 0x654321);
         this.physics.add.existing(ground, true);
 
-        // Player
-        this.player = this.physics.add.sprite(100, 500, 'gui_normal_right');
-        this.player.setScale(0.1);
-        this.player.setCollideWorldBounds(true);
+        // Player config
+        const playerConfig = { scale: 0.1, speed: 160 };
+
+        // Create Player
+        this.player = new Player(this, 100, 500, playerConfig);
         this.physics.add.collider(this.player, ground);
+        this.player.cursors = this.input.keyboard.createCursorKeys();
 
         // Yellow Block
         this.block = this.add.rectangle(400, 400, 32, 32, 0xFFFF00);
@@ -369,9 +395,6 @@
         this.physics.add.overlap(this.player, this.mushroom, this.collectMushroom, null, this);
         this.physics.add.overlap(this.player, this.portal, this.enterPortal, null, this);
 
-        // Inputs
-        this.cursors = this.input.keyboard.createCursorKeys();
-
         // Info Text
         this.infoText = this.add.text(400, 100, 
           "Bata de cabeça no bloco amarelo para liberar o cogumelo!\nUse as setas para mover, Espaço para pular.", 
@@ -379,13 +402,8 @@
         ).setOrigin(0.5);
       }
 
-      /**
-       * Emits a burst of particles at the specified (x, y) position.
-       * @param {number} x - The x-coordinate where the burst occurs.
-       * @param {number} y - The y-coordinate where the burst occurs.
-       */
       emitParticleBurst(x, y) {
-        const particleCount = 20; // Number of particles per burst
+        const particleCount = 20;
         for (let i = 0; i < particleCount; i++) {
           const angle = Phaser.Math.Between(0, 360);
           const speed = Phaser.Math.Between(50, 150);
@@ -397,7 +415,6 @@
           particle.body.setVelocity(velocityX, velocityY);
           particle.body.setAllowGravity(false);
 
-          // Animate particle scaling and fading
           this.tweens.add({
             targets: particle,
             alpha: 0,
@@ -410,95 +427,30 @@
         }
       }
 
-      update() {
-        const speed = 160;
-        const onGround = this.player.body.blocked.down;
-
-        // Reset walking frame counter if standing still
-        if (this.player.body.velocity.x === 0) {
-          this.walkFrameCounter = 0;
-        }
-
-        // Horizontal movement input
-        if (this.cursors.left.isDown) {
-          this.player.body.setVelocityX(-speed);
-          this.facing = 'left'; // face left if moving left
-        } else if (this.cursors.right.isDown) {
-          this.player.body.setVelocityX(speed);
-          this.facing = 'right'; // face right if moving right
-        } else {
-          this.player.body.setVelocityX(0);
-        }
-
-        // Jumping
-        if ((this.cursors.up.isDown ) && onGround) {
-          this.player.body.setVelocityY(-400);
-        }
-
-        // Determine sprite based on state
-        if (!onGround) {
-          // Player is jumping or falling
-          // If facing left, use jump_left; if right, use jump_right
-          if (this.facing === 'left') {
-            this.player.setTexture('gui_normal_jump_left');
-          } else {
-            this.player.setTexture('gui_normal_jump_right');
-          }
-        } else {
-          // Player is on the ground
-          if (this.player.body.velocity.x !== 0) {
-            // Player is walking
-            // Alternate between idle and walk texture to simulate walking
-            this.walkFrameCounter++;
-            if (this.facing === 'left') {
-              // Alternate between normal_left and walk_left
-              if (this.walkFrameCounter % 20 < 10) {
-                this.player.setTexture('gui_normal_left');
-              } else {
-                this.player.setTexture('gui_normal_walk_left');
-              }
-            } else {
-              // Facing right, alternate between normal_right and walk_right
-              if (this.walkFrameCounter % 20 < 10) {
-                this.player.setTexture('gui_normal_right');
-              } else {
-                this.player.setTexture('gui_normal_walk_right');
-              }
-            }
-          } else {
-            // Player is idle
-            // Just show idle texture according to facing direction
-            if (this.facing === 'left') {
-              this.player.setTexture('gui_normal_left');
-            } else {
-              this.player.setTexture('gui_normal_right');
-            }
-          }
-        }
+      update(time, delta) {
+        // Let the Player handle movement & animations
+        this.player.updateMovement(delta);
       }
 
       hitBlock(player, block) {
-      // Trigger the block hit effects only if the player is hitting from below
-      if (player.body.touching.up) {
-        // Handle mushroom release once
-        if (!this.blockHit) {
-          this.blockHit = true;
-          this.mushroom.visible = true;
-          this.mushroom.body.setAllowGravity(true);
+        // Trigger the block hit effects only if the player is hitting from below
+        if (player.body.touching.up) {
+          // Handle mushroom release once
+          if (!this.blockHit) {
+            this.blockHit = true;
+            this.mushroom.visible = true;
+            this.mushroom.body.setAllowGravity(true);
+          }
+
+          // Change block color to red briefly
+          block.setFillStyle(0xFF0000);
+          this.time.delayedCall(500, () => {
+            block.setFillStyle(0xFFFF00);
+          });
+
+          this.emitParticleBurst(block.x, block.y);
         }
-
-        // Change block color to red
-        block.setFillStyle(0xFF0000); // Red color
-        // Revert to original color after 0.5 seconds
-        this.time.delayedCall(500, () => {
-          block.setFillStyle(0xFFFF00); // Original yellow color
-        });
-
-        // Emit particle burst at block's position
-        this.emitParticleBurst(block.x, block.y);
       }
-    }
-
 
       collectMushroom(player, mushroom) {
         if (!this.mushroomCollected) {
@@ -511,34 +463,7 @@
       enterPortal(player, portal) {
         this.scene.start('RickMortyMessage');
       }
-    }
-
-    // =============================
-    // RickMortyMessage
-    // =============================
-    class RickMortyMessage extends Phaser.Scene {
-      constructor() {
-        super('RickMortyMessage');
-        this.gCount = 0;
-      }
-
-      create() {
-        this.cameras.main.setBackgroundColor('#000000');
-        this.add.text(400, 300, "Tela preta: Pressione G duas vezes para continuar",
-          { font: "20px Arial", fill: "#ffffff", align: "center"}).setOrigin(0.5);
-
-        this.gKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.G);
-      }
-
-      update() {
-        if (Phaser.Input.Keyboard.JustDown(this.gKey)) {
-          this.gCount++;
-          if (this.gCount >= 2) {
-            this.scene.start('TimeBreakScene');
-          }
-        }
-      }
-    }
+    }    
 
     // =============================
     // TimeBreakScene
@@ -546,100 +471,35 @@
     class TimeBreakScene extends Phaser.Scene {
       constructor() {
         super('TimeBreakScene');
-        
-        // Enemy state
         this.enemyDead = false;
-        
-        // Player state
-        this.hasGun = false;
-        this.direction = 'right'; // 'left' or 'right'
-        this.isJumping = false;
-        this.walkFrame = 0; // To alternate walking sprites
-        this.walkTimer = 0; // Timer to control sprite switching
-        
-        // Fragmented Cameras
         this.fragmentCams = [];
-        
-        // Character Variables
+        this.spawnPoint = { x: 100, y: 500 };
+
         this.rick = null;
         this.morty = null;
         this.giullya = null;
-        
-        // Dialogue Text Variables
         this.rickText = null;
         this.mortyText = null;
         this.giullyaText = null;
-        
-        // Gun Variable
+
         this.gun = null;
-        
-        // Portals
         this.portalLeft = null;
         this.portalRight = null;
-        
-        // Bullets Group
-        this.bullets = null;
-        
-        // Other Game Objects
         this.ground = null;
         this.player = null;
         this.enemy = null;
-        
-        // Input Keys
-        this.cursors = null;
-        this.shootKey = null;
-        
-        // Spawn Point
-        this.spawnPoint = { x: 100, y: 500 };
-    }
+      }
 
       preload() {
-      // Create bullet texture
-      const bulletCanvas = this.textures.createCanvas('bullet', 2, 2);
-      bulletCanvas.context.fillStyle = '#ffffff';
-      bulletCanvas.context.fillRect(0, 0, 2, 2);
-      bulletCanvas.refresh();
+        // Preload characters
+        Player.preload(this);
+        Rick.preload(this);
+        Morty.preload(this);
+        Giullya.preload(this);
 
-      // Load player assets
-      // Idle/Normal Sprites
-      this.load.image('gui_normal_left', 'assets/gui_normal_left.png');
-      this.load.image('gui_normal_right', 'assets/gui_normal_right.png');
-      this.load.image('gui_normal_left_gun', 'assets/gui_normal_left_gun.png');
-      this.load.image('gui_normal_right_gun', 'assets/gui_normal_right_gun.png');
-
-      // Walking Sprites
-      this.load.image('gui_normal_walk_left', 'assets/gui_normal_walk_left.png');
-      this.load.image('gui_normal_walk_right', 'assets/gui_normal_walk_right.png');
-      this.load.image('gui_normal_walk_left_gun', 'assets/gui_normal_walk_left_gun.png');
-      this.load.image('gui_normal_walk_right_gun', 'assets/gui_normal_walk_right_gun.png');
-
-      // Jumping Sprites
-      this.load.image('gui_normal_jump_left', 'assets/gui_normal_jump_left.png');
-      this.load.image('gui_normal_jump_right', 'assets/gui_normal_jump_right.png');
-      this.load.image('gui_normal_jump_left_gun', 'assets/gui_normal_jump_left_gun.png');
-      this.load.image('gui_normal_jump_right_gun', 'assets/gui_normal_jump_right_gun.png');
-
-      // Load Rick & Morty
-      this.load.image('rick_still_gun_left', 'assets/characters/rick_still_gun_left.png');
-      this.load.image('rick_middle_finger_left', 'assets/characters/rick_middle_finger_left.png');
-      this.load.image('rick_still_left', 'assets/characters/rick_still_left.png');
-      this.load.image('rick_walking_left', 'assets/characters/rick_walking_left.png');
-      this.load.image('rick_walking_right', 'assets/characters/rick_walking_right.png'); // Added
-      this.load.image('rick_still_right', 'assets/characters/rick_still_right.png');     // Added
-
-      this.load.image('morty_middle_finger_left', 'assets/characters/morty_middle_finger_left.png');
-      this.load.image('morty_still_left', 'assets/characters/morty_still_left.png');
-      this.load.image('morty_walking_left', 'assets/characters/morty_walking_left.png');
-      this.load.image('morty_walking_right', 'assets/characters/morty_walking_right.png'); // Added
-      this.load.image('morty_still_right', 'assets/characters/morty_still_right.png');     // Added
-
-      // Load Giullya
-      this.load.image('giullya_kissing_right', 'assets/characters/giullya_kissing_right.png');
-      this.load.image('giullya_still_right', 'assets/characters/giullya_still_right.png');
-      this.load.image('giullya_walking_right', 'assets/characters/giullya_walking_right.png');
-      this.load.image('giullya_walking_left', 'assets/characters/giullya_walking_left.png');   // Added
-      this.load.image('giullya_still_left', 'assets/characters/giullya_still_left.png');       // Added
-  }
+        // The Player class already preloads the bullet and player textures.
+        // Additional assets like Rick/Morty/Giullya textures are preloaded by their classes.
+      }
 
       create() {
         this.physics.world.setBounds(0, 0, 800, 600);
@@ -649,15 +509,11 @@
         this.ground = this.add.rectangle(400, 590, 800, 20, 0x654321);
         this.physics.add.existing(this.ground, true);
 
-        // Player as sprite
-        this.player = this.physics.add.sprite(100, 500, 'gui_normal_right');
-        this.player.setScale(0.05);
-        this.player.setCollideWorldBounds(true);
+        // Create Player
+        const playerConfig = { scale: 0.05, speed: 160 };
+        this.player = new Player(this, 100, 500, playerConfig);
         this.physics.add.collider(this.player, this.ground);
-
-        // Initialize player state
-        this.direction = 'right';
-        this.isJumping = false;
+        this.player.cursors = this.input.keyboard.createCursorKeys();
 
         // Enemy
         this.enemy = this.add.rectangle(600, 500, 30, 50, 0xff00ff);
@@ -668,38 +524,13 @@
         // Gun
         this.gunSpawnX = 700;
         this.gunSpawnY = 550;
-        this.addGun(this.ground);
-
-        // Bullets
-        this.bullets = this.physics.add.group({ allowGravity: false });
+        this.addGun();
 
         // Overlaps
-        this.physics.add.overlap(this.bullets, this.enemy, this.shootEnemy, null, this);
+        this.physics.add.overlap(this.player.bullets, this.enemy, this.shootEnemy, null, this);
         this.physics.add.overlap(this.player, this.enemy, this.enemyHitPlayer, null, this);
 
-        // Input
-        this.cursors = this.input.keyboard.createCursorKeys();
-        this.shootKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-
-        // Rick's state
-        this.rickDirection = 'left';
-        this.rickWalkFrame = 0;
-        this.rickWalkTimer = 0;
-
-        // Morty's state
-        this.mortyDirection = 'left';
-        this.mortyWalkFrame = 0;
-        this.mortyWalkTimer = 0;
-
-        // Giullya's state
-        this.giullyaDirection = 'right';
-        this.giullyaWalkFrame = 0;
-        this.giullyaWalkTimer = 0;
-
-        // Respawn point
-        this.spawnPoint = { x: 100, y: 500 };
-
-        // Portals setup
+        // Portals
         this.portalLeft = this.add.rectangle(100, 500, 50, 100, 0x00FFFF);
         this.physics.add.existing(this.portalLeft, true);
         this.portalLeft.visible = false;
@@ -711,214 +542,34 @@
         this.portalRight.body.enable = false;
 
         this.physics.add.overlap(this.player, this.portalRight, this.enterRightPortal, null, this);
-    }
-      
-      update(time, delta) {
-        const speed = 160;
-        const onGround = this.player.body.blocked.down;
-
-        // Reset velocity
-        this.player.setVelocityX(0);
-
-        // Movement
-        if (this.cursors.left.isDown) {
-            this.player.setVelocityX(-speed);
-            this.direction = 'left';
-        } else if (this.cursors.right.isDown) {
-            this.player.setVelocityX(speed);
-            this.direction = 'right';
-        }
-
-        // Jump
-        if (this.cursors.up.isDown && onGround) {
-            this.player.setVelocityY(-400);
-            this.isJumping = true;
-        }
-
-        // Check if player is on ground to reset jumping state
-        if (onGround && this.isJumping) {
-            this.isJumping = false;
-            // Reset walk timer when landing
-            this.walkTimer = 0;
-            this.walkFrame = 0;
-        }
-
-        // Handle shooting
-        if (Phaser.Input.Keyboard.JustDown(this.shootKey) && this.hasGun) {
-            this.shootBullet();
-        }
-
-        // Update player sprite based on state
-        this.updatePlayerSprite(delta);
-        
-        // Enemy follows the player if alive
-        if (!this.enemyDead && this.enemy) {
-            if (this.player.x < this.enemy.x) {
-                this.enemy.body.setVelocityX(-100);
-            } else {
-                this.enemy.body.setVelocityX(100);
-            }
-        }
-
-        // Update Rick's sprite if he exists
-        if (this.rick) {
-            ({ walkFrame: this.rickWalkFrame, walkTimer: this.rickWalkTimer } = this.updateCharacterSprite(
-                this.rick,
-                this.rickDirection,
-                this.rickWalkFrame,
-                this.rickWalkTimer,
-                delta,
-                {
-                    walkLeft: 'rick_walking_left',
-                    walkRight: 'rick_walking_right',
-                    idleLeft: 'rick_still_left',
-                    idleRight: 'rick_still_right'
-                }
-            ));
-        }
-
-        // Update Morty's sprite if he exists
-        if (this.morty) {
-            ({ walkFrame: this.mortyWalkFrame, walkTimer: this.mortyWalkTimer } = this.updateCharacterSprite(
-                this.morty,
-                this.mortyDirection,
-                this.mortyWalkFrame,
-                this.mortyWalkTimer,
-                delta,
-                {
-                    walkLeft: 'morty_walking_left',
-                    walkRight: 'morty_walking_right',
-                    idleLeft: 'morty_still_left',
-                    idleRight: 'morty_still_right'
-                }
-            ));
-        }
-
-        // Update Giullya's sprite if she exists
-        if (this.giullya) {
-            ({ walkFrame: this.giullyaWalkFrame, walkTimer: this.giullyaWalkTimer } = this.updateCharacterSprite(
-                this.giullya,
-                this.giullyaDirection,
-                this.giullyaWalkFrame,
-                this.giullyaWalkTimer,
-                delta,
-                {
-                    walkLeft: 'giullya_walking_left',
-                    walkRight: 'giullya_walking_right',
-                    idleLeft: 'giullya_still_left',
-                    idleRight: 'giullya_still_right'
-                }
-            ));
-        }
-    }
-
-      updatePlayerSprite(delta) {
-        // Update walk timer
-        this.walkTimer += delta;
-
-        // Determine current sprite based on state
-        let spriteKey = '';
-
-        if (this.isJumping) {
-            // Set jumping sprite based on direction and gun state
-            if (this.direction === 'left') {
-                spriteKey = this.hasGun ? 'gui_normal_jump_left_gun' : 'gui_normal_jump_left';
-            } else {
-                spriteKey = this.hasGun ? 'gui_normal_jump_right_gun' : 'gui_normal_jump_right';
-            }
-            this.player.setTexture(spriteKey);
-            return; // Do not proceed to walking or idle if jumping
-        }
-
-        if (this.player.body.velocity.x !== 0) {
-            // Player is moving: handle walking animation
-            if (this.walkTimer >= 100) { // Change sprite every 100ms for smoother animation
-                this.walkFrame = (this.walkFrame + 1) % 2; // Toggle between 0 and 1
-                this.walkTimer = 0;
-            }
-
-            if (this.walkFrame === 0) {
-                // Walking Frame 1
-                if (this.direction === 'left') {
-                    spriteKey = this.hasGun ? 'gui_normal_walk_left_gun' : 'gui_normal_walk_left';
-                } else {
-                    spriteKey = this.hasGun ? 'gui_normal_walk_right_gun' : 'gui_normal_walk_right';
-                }
-            } else {
-                // Walking Frame 2 (Idle Sprite to simulate walking)
-                if (this.direction === 'left') {
-                    spriteKey = this.hasGun ? 'gui_normal_left_gun' : 'gui_normal_left';
-                } else {
-                    spriteKey = this.hasGun ? 'gui_normal_right_gun' : 'gui_normal_right';
-                }
-            }
-
-            this.player.setTexture(spriteKey);
-        } else {
-            // Player is idle: set to idle sprite based on direction and gun state
-            if (this.direction === 'left') {
-                spriteKey = this.hasGun ? 'gui_normal_left_gun' : 'gui_normal_left';
-            } else {
-                spriteKey = this.hasGun ? 'gui_normal_right_gun' : 'gui_normal_right';
-            }
-            this.player.setTexture(spriteKey);
-            // Reset walk animation state
-            this.walkFrame = 0;
-            this.walkTimer = 0;
-        }
-    }
-          
-      updateCharacterSprite(character, direction, walkFrame, walkTimer, delta, spriteKeys) {
-        if (!character || !character.body) {
-            return { walkFrame, walkTimer };
-        }
-
-        // Update walk timer
-        walkTimer += delta;
-
-        if (walkTimer >= 100) {
-            walkFrame = (walkFrame + 1) % 2; // Toggle between 0 and 1
-            walkTimer = 0;
-        }
-
-        let spriteKey = '';
-
-        if (character.body.velocity.x !== 0) {
-            // Walking animation
-            if (walkFrame === 0) {
-                spriteKey = direction === 'left' ? spriteKeys.walkLeft : spriteKeys.walkRight;
-            } else {
-                spriteKey = direction === 'left' ? spriteKeys.idleLeft : spriteKeys.idleRight;
-            }
-        } else {
-            // Idle sprite
-            spriteKey = direction === 'left' ? spriteKeys.idleLeft : spriteKeys.idleRight;
-        }
-
-        character.setTexture(spriteKey);
-
-        return { walkFrame, walkTimer };
       }
 
+      update(time, delta) {
+        // Player updates itself
+        this.player.updateMovement(delta);
 
-      addGun(ground) {
+        // Enemy follows player if alive
+        if (!this.enemyDead && this.enemy) {
+          if (this.player.x < this.enemy.x) {
+            this.enemy.body.setVelocityX(-100);
+          } else {
+            this.enemy.body.setVelocityX(100);
+          }
+        }
+      }
+
+      addGun() {
         this.gun = this.add.rectangle(this.gunSpawnX, this.gunSpawnY, 20, 10, 0xffff00);
         this.physics.add.existing(this.gun);
-        this.physics.add.collider(this.gun, ground);
+        this.physics.add.collider(this.gun, this.ground);
         this.physics.add.overlap(this.player, this.gun, this.collectGun, null, this);
       }
 
       collectGun(player, gun) {
-        this.hasGun = true;
+        this.player.hasGun = true;
         gun.destroy();
         this.add.text(400, 100, "You got the gun! Press SPACE to shoot.", 
           { font: "16px Arial", fill: "#ffffff" }).setOrigin(0.5).setScrollFactor(0);
-      }
-
-      shootBullet() {
-        const bullet = this.bullets.create(this.player.x + (this.direction === 'right' ? 20 : -20), this.player.y, 'bullet');
-        bullet.setDisplaySize(10, 5);
-        bullet.body.setVelocityX(this.direction === 'right' ? 400 : -400);
       }
 
       shootEnemy(bullet, enemy) {
@@ -928,17 +579,17 @@
 
       enemyHitPlayer(player, enemy) {
         if (!this.enemyDead) {
-          this.hasGun = false;
+          this.player.hasGun = false;
           this.respawnPlayer();
-          this.addGun(this.ground);
+          this.addGun();
         }
       }
 
       respawnPlayer() {
         this.player.setPosition(this.spawnPoint.x, this.spawnPoint.y);
         this.player.body.setVelocity(0);
-        this.isJumping = false;
-        this.direction = 'right'; // Reset direction or keep current
+        this.player.isJumping = false;
+        this.player.direction = 'right';
       }
 
       killEnemy() {
@@ -970,17 +621,13 @@
           }).setOrigin(0.5).setScrollFactor(0);
         });
 
-        // Rick & Morty appear at ground level and move in
+        // Rick & Morty appear at ground level and move in after 3s total
         this.time.delayedCall(3000, () => {
-          this.rick = this.physics.add.sprite(100, 500, 'rick_still_left');
-          this.morty = this.physics.add.sprite(100, 500, 'morty_still_left');
-          this.rick.setScale(0.5);
-          this.morty.setScale(0.5);
+          const rickConfig = { scale: 0.5, speed: 50 };
+          const mortyConfig = { scale: 0.5, speed: 50 };
+          this.rick = new Rick(this, 100, 500, rickConfig);
+          this.morty = new Morty(this, 100, 500, mortyConfig);
 
-          this.physics.add.existing(this.rick);
-          this.physics.add.existing(this.morty);
-          this.rick.body.setCollideWorldBounds(true);
-          this.morty.body.setCollideWorldBounds(true);
           this.physics.add.collider(this.rick, this.ground);
           this.physics.add.collider(this.morty, this.ground);
 
@@ -1010,15 +657,13 @@
           });
         });
 
-        // Another character comes from left at ground level after 8s
+        // Another character (Giullya) after 8s
         this.time.delayedCall(8000, () => {
-          this.giullya = this.physics.add.sprite(100, 500, 'giullya_still_right');
-          this.giullya.setScale(0.5);
-          this.physics.add.existing(this.giullya);
-          this.giullya.body.setCollideWorldBounds(true);
+          const giullyaConfig = { scale: 0.5, speed: 50 };
+          this.giullya = new Giullya(this, 100, 500, giullyaConfig);
           this.physics.add.collider(this.giullya, this.ground);
 
-          // Move the giullya to the player
+          // Move giullya to the player
           this.tweens.add({
             targets: this.giullya,
             x: this.player.x - 30,
@@ -1030,7 +675,7 @@
                 font: "16px Arial", fill: "#ff69b4", align: "center"
               }).setOrigin(0.5).setScrollFactor(0);
 
-              // Remove fragment
+              // Remove fragment cameras
               this.fragmentCams.forEach(cam => this.cameras.remove(cam));
               this.fragmentCams = [];
               this.cameras.main.setVisible(true);
@@ -1053,11 +698,10 @@
             if (this.rickText) this.rickText.setText("Rick: Que chato isso...");
             if (this.mortyText) this.mortyText.setText("Morty: Vamos embora...");
 
-            // Make left portal visible and enable its body
+            // Make left portal visible and enable
             this.portalLeft.visible = true;
             this.portalLeft.body.enable = true;
 
-            // Tween them into portalLeft.x, then destroy them
             this.tweens.add({
               targets: [this.rick, this.morty],
               x: this.portalLeft.x,
@@ -1092,18 +736,563 @@
       }
 
       enterRightPortal(player, portal) {
-        // When player (and presumably giullya is near) touches the right portal, go to next scene
         this.scene.start('RickMortyMessage');
       }
     }
 
 
-    class KillPickleRick extends Phaser.Scene {
-      constructor() {
-        super('TimeBreakScene');
-      }
+    // =============================
+    // HarryPotterScene
+    // =============================
+    class BroomChallengeScene extends Phaser.Scene {
+  constructor() {
+    super('BroomChallengeScene');
+    this.isGameOver = false;
+    this.obstacleSpeed = 200;
+    this.spawnTimer = 0;
+    this.spawnInterval = 1500; // ms between obstacles
+    this.gameDuration = 60000; // 1 minute in ms
+  }
 
+  preload() {
+    // Player sprite
+    this.load.image('player', 'assets/hogwarts/hogwarts_gui_normal.png');
+
+    // Generate spell texture (red square)
+    const graphics = this.make.graphics({ x: 0, y: 0, add: false });
+    graphics.fillStyle(0xff0000, 1);
+    graphics.fillRect(0, 0, 20, 20);
+    graphics.generateTexture('spell', 20, 20);
+
+    // Giullya sprite (using the same sprite for simplicity)
+    this.load.image('giullya', 'assets/hogwarts/hogwarts_gui_normal.png');
+
+    // Commented out audio loading
+    // this.load.audio('hp_theme', 'assets/audio/hp_theme.mp3');
+  }
+
+  create() {
+    this.cameras.main.setBackgroundColor('#000000');
+
+    // Create Player using Player class
+    const playerConfig = { scale: 0.5, speed: 0 };
+    this.player = new Player(this, 100, 300, playerConfig);
+    this.player.setTexture('player');
+    this.physics.add.existing(this.player);
+    this.player.body.setCollideWorldBounds(true);
+
+    // Gravity for flappy-bird like movement
+    this.physics.world.gravity.y = 600;
+    this.player.cursors = this.input.keyboard.createCursorKeys();
+
+    // Giullya
+    this.giullya = this.physics.add.sprite(this.player.x - 50, this.player.y, 'giullya');
+    this.giullya.setScale(0.5);
+    this.giullya.body.setCollideWorldBounds(true);
+    this.giullya.body.allowGravity = false;
+
+    // Obstacles group
+    this.obstacles = this.physics.add.group();
+
+    // Check collision with spells
+    this.physics.add.overlap(this.player, this.obstacles, this.hitSpell, null, this);
+
+    // Commented out audio:
+    // this.backgroundMusic = this.sound.add('hp_theme', { loop: true });
+    // this.backgroundMusic.play();
+
+    // Start timing the game
+    this.startTime = this.time.now;
+
+    // Score text or timer text if desired
+    this.infoText = this.add.text(10, 10, 'Survive 60s!', { font: '20px Arial', fill: '#ffffff' });
+  }
+
+  update(time, delta) {
+    if (this.isGameOver) return;
+
+    // Flappy Bird style control
+    if (this.player.cursors.space.isDown) {
+      this.player.setVelocityY(-300);
     }
+
+    // Update player
+    this.player.update(delta);
+
+    // Giullya follows player smoothly
+    this.giullya.x = Phaser.Math.Linear(this.giullya.x, this.player.x - 50, 0.1);
+    this.giullya.y = Phaser.Math.Linear(this.giullya.y, this.player.y, 0.1);
+
+    // Spawn obstacles
+    this.spawnTimer += delta;
+    if (this.spawnTimer >= this.spawnInterval) {
+      this.spawnTimer = 0;
+      this.spawnObstacle();
+    }
+
+    // Check time elapsed
+    const elapsed = this.time.now - this.startTime;
+    if (elapsed >= this.gameDuration && !this.isGameOver) {
+      this.endGameSuccess();
+    }
+
+    // Clean up obstacles
+    this.obstacles.children.each(obstacle => {
+      if (obstacle.x < -50) {
+        obstacle.destroy();
+      }
+    });
+  }
+
+  spawnObstacle() {
+    // Spawn a spell (red square) at a random y
+    const y = Phaser.Math.Between(50, 550);
+    const spell = this.obstacles.create(850, y, 'spell');
+    spell.setVelocityX(-this.obstacleSpeed);
+    spell.body.allowGravity = false;
+  }
+
+  hitSpell(player, spell) {
+    if (this.isGameOver) return;
+    this.isGameOver = true;
+    player.setTint(0xff0000);
+    this.physics.pause();
+
+    // Stop music if we had it
+    // if (this.backgroundMusic) this.backgroundMusic.stop();
+
+    this.add.text(400, 300, 'Game Over!', {
+      font: '32px Arial',
+      fill: '#ffffff'
+    }).setOrigin(0.5);
+
+    this.time.delayedCall(3000, () => {
+      this.scene.restart();
+    });
+  }
+
+  endGameSuccess() {
+    this.isGameOver = true;
+    this.physics.pause();
+
+    this.add.text(400, 300, 'You made it!', {
+      font: '32px Arial',
+      fill: '#ffffff'
+    }).setOrigin(0.5);
+
+    // Move to conclusion scene after a delay
+    this.time.delayedCall(3000, () => {
+      this.scene.start('BroomChallengeConclusion');
+    });
+  }
+}
+
+class BroomChallengeConclusion extends Phaser.Scene {
+  constructor() {
+    super('BroomChallengeConclusion');
+  }
+
+  preload() {
+    // Load images for the transition
+    // Using same sprite for simplicity or add actual images if available
+    this.load.image('gui_hp', 'assets/hogwarts/hogwarts_gui_normal.png');
+    this.load.image('gui_original', 'assets/hogwarts/hogwarts_gui_normal.png');
+    this.load.image('giullya_hp', 'assets/hogwarts/hogwarts_gui_normal.png');
+    this.load.image('giullya_original', 'assets/hogwarts/hogwarts_gui_normal.png');
+
+    // A simple portal texture
+    const graphics = this.make.graphics({x:0,y:0,add:false});
+    graphics.fillStyle(0x00ffff, 1);
+    graphics.fillCircle(40,40,40);
+    graphics.generateTexture('portal',80,80);
+  }
+
+  create() {
+    this.cameras.main.setBackgroundColor('#000000');
+
+    // Characters from previous dimension
+    this.add.image(200, 300, 'gui_hp').setScale(0.5);
+    this.add.image(400, 300, 'gui_original').setScale(0.5);
+    this.add.image(600, 300, 'giullya_hp').setScale(0.5);
+    this.add.image(800, 300, 'giullya_original').setScale(0.5);
+
+    // Dialogue
+    this.add.text(400, 100, 'Gui (HP): “Mano, eu só quero ir pra Itália!”', {
+      font: '20px Arial',
+      fill: '#ffffff',
+    }).setOrigin(0.5);
+
+    this.add.text(400, 150, 'Gui (Original): “Tamo junto, irmão.”', {
+      font: '20px Arial',
+      fill: '#ffffff',
+    }).setOrigin(0.5);
+
+    // After a delay, show a portal and simulate Gui going through it
+    this.time.delayedCall(3000, () => {
+      const portal = this.add.sprite(400, 400, 'portal').setScale(1);
+      this.add.text(400, 350, 'Um portal aparece...', {
+        font: '18px Arial', fill: '#ffffff'
+      }).setOrigin(0.5);
+
+      // Move Gui (original) to portal after delay
+      this.time.delayedCall(2000, () => {
+        // Simulate Gui going into the portal
+        // We can just fade out the scene
+        this.tweens.add({
+          targets: portal,
+          alpha: 0,
+          duration: 2000,
+          onComplete: () => {
+            // Move to next scene (PresidenteGuiScene)
+            this.scene.start('PresidenteGuiScene');
+          }
+        });
+      });
+    });
+  }
+}
+
+class PresidenteGuiScene extends Phaser.Scene {
+  constructor() {
+    super('PresidenteGuiScene');
+  }
+
+  preload() {
+    // Placeholder textures
+    const graphics = this.make.graphics({x:0,y:0,add:false});
+    
+    // Crowd member (gray rectangle)
+    graphics.fillStyle(0x808080,1);
+    graphics.fillRect(0,0,20,40);
+    graphics.generateTexture('crowd_member',20,40);
+
+    // Assassin (red rectangle)
+    graphics.clear();
+    graphics.fillStyle(0xff0000,1);
+    graphics.fillRect(0,0,20,40);
+    graphics.generateTexture('assassin',20,40);
+
+    // Giullya sprite for the end
+    this.load.image('giullya_end', 'assets/hogwarts/hogwarts_gui_normal.png');
+
+    // Gui sprite (same as before)
+    this.load.image('gui_president', 'assets/hogwarts/hogwarts_gui_normal.png');
+  }
+
+  create() {
+    this.cameras.main.setBackgroundColor('#000000');
+
+    // Gui making his speech
+    this.add.text(400, 50, "Gui: “SE VOCÊ TEM MAIS DE 20 ANOS E ESCUTA TRAP, VOCÊ É UM FRACASSADO 2.0!”", {
+      font: '16px Arial', 
+      fill:'#ffffff', 
+      wordWrap: { width: 600 }
+    }).setOrigin(0.5);
+
+    // Gui on stage
+    this.add.image(400, 150, 'gui_president').setScale(0.5);
+
+    // Instructions
+    this.instructionText = this.add.text(400, 220, "Clique no assassino antes que ele atire!", {
+      font: '20px Arial', fill: '#00ff00'
+    }).setOrigin(0.5);
+    
+    // Create a crowd
+    this.crowd = this.add.group();
+    const assassinIndex = Phaser.Math.Between(0,9); 
+    for (let i=0; i<10; i++){
+      // Spread the crowd horizontally
+      const x = 100 + i*60;
+      const y = 350;
+      let texture = (i === assassinIndex) ? 'assassin' : 'crowd_member';
+      const person = this.add.sprite(x,y,texture).setInteractive();
+      person.isAssassin = (i === assassinIndex);
+      
+      // Slight random scale variation for some variety
+      person.setScale(Phaser.Math.FloatBetween(0.8,1.2));
+      
+      // Make them slightly spaced and possibly show them swaying
+      this.tweens.add({
+        targets: person,
+        y: y + Phaser.Math.Between(-5,5),
+        duration: 2000,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+      
+      this.crowd.add(person);
+    }
+
+    // Set input handler
+    this.input.on('gameobjectdown', this.onObjectClicked, this);
+
+    this.gameOver = false;
+    this.assassinFound = false;
+
+    // Add a small delay before the assassin is considered "active"
+    this.time.delayedCall(3000, () => {
+      // After 3s, the assassin is ready to shoot.
+      // We can show a subtle hint or start a countdown.
+      this.add.text(400, 280, "Atenção! Ele pode atirar a qualquer momento!", {
+        font: '18px Arial', fill: '#ff0000'
+      }).setOrigin(0.5);
+
+      // Potentially start a timer that if reaches a certain time, game over.
+      this.assassinTimer = this.time.delayedCall(5000, () => {
+        if (!this.assassinFound && !this.gameOver) {
+          this.fail();
+        }
+      });
+    });
+  }
+
+  onObjectClicked(pointer, gameObject) {
+    if (this.gameOver) return;
+
+    if (gameObject.isAssassin) {
+      // Correct target
+      this.success();
+    } else {
+      // Wrong target
+      // Shake the camera for feedback
+      this.cameras.main.shake(200,0.01);
+    }
+  }
+
+  success() {
+    this.gameOver = true;
+    this.assassinFound = true;
+    if (this.assassinTimer) {
+      this.assassinTimer.remove(false);
+    }
+
+    // Clear the crowd
+    this.crowd.children.each(child => {
+      child.destroy();
+    });
+
+    // Show success message
+    this.add.text(400, 300, "Excelente! Você pegou o assassino!", {
+      font: '24px Arial', fill:'#00ff00'
+    }).setOrigin(0.5);
+
+    // After a delay, show Giullya's ending line
+    this.time.delayedCall(3000, () => {
+      this.add.image(400, 350, 'giullya_end').setScale(0.5);
+      this.add.text(400, 400, 'Giullya: “Você é o melhor Sonic 2024 atualizado 100%!”', {
+        font: '18px Arial', fill:'#ffffff'
+      }).setOrigin(0.5);
+
+      // After a few seconds, end or go to next scene
+      this.time.delayedCall(5000, () => {
+        // Restart or go to another scene
+        this.scene.start('BroomChallengeScene'); // Or a final ending scene
+      });
+    });
+  }
+
+  fail() {
+    this.gameOver = true;
+    // Assassin shot first
+    this.crowd.children.each(child => {
+      child.destroy();
+    });
+
+    this.add.text(400, 300, 'Você falhou! O assassino atirou primeiro!', {
+      font: '24px Arial', fill: '#ff0000'
+    }).setOrigin(0.5);
+
+    this.time.delayedCall(3000, () => {
+      this.scene.start('RealidadeFilhosScene'); // Or restart from a certain scene
+    });
+  }
+}
+
+class RealidadeFilhosScene extends Phaser.Scene {
+  constructor() {
+    super('RealidadeFilhosScene');
+  }
+
+  preload() {
+    // Using geometric shapes instead of images:
+    // Commented out image loads (just for reference)
+    /*
+    this.load.image('sala', 'assets/sala.png'); 
+    this.load.image('arma_suja', 'assets/arma_suja.png'); 
+    this.load.image('esponja', 'assets/esponja.png');
+    this.load.image('pano', 'assets/pano.png');
+    this.load.image('ian', 'assets/ian.png'); 
+    this.load.image('diana', 'assets/diana.png');
+    this.load.image('arup', 'assets/arup.png');
+    this.load.image('giullya', 'assets/hogwarts/hogwarts_gui_normal.png');
+    this.load.image('gui', 'assets/hogwarts/hogwarts_gui_normal.png');
+    */
+
+    // Sala (just a large rectangle as background)
+    const bgGraphics = this.make.graphics({x:0,y:0,add:false});
+    bgGraphics.fillStyle(0x654321,1); // Brownish for a cozy room
+    bgGraphics.fillRect(0,0,800,600);
+    bgGraphics.generateTexture('sala_shape',800,600);
+
+    // Arma suja (a smaller rectangle to represent the dirty portal gun)
+    const armaGraphics = this.make.graphics({x:0,y:0,add:false});
+    armaGraphics.fillStyle(0x333333,1); // Dark gray
+    armaGraphics.fillRect(0,0,100,50);
+    armaGraphics.generateTexture('arma_suja_shape',100,50);
+
+    // Ferramentas de limpeza (esponja e pano) as rectangles
+    const esponjaGraphics = this.make.graphics({x:0,y:0,add:false});
+    esponjaGraphics.fillStyle(0xffff00,1); // Yellow for sponge
+    esponjaGraphics.fillRect(0,0,40,40);
+    esponjaGraphics.generateTexture('esponja_shape',40,40);
+
+    const panoGraphics = this.make.graphics({x:0,y:0,add:false});
+    panoGraphics.fillStyle(0x00ffff,1); // Cyan for cloth
+    panoGraphics.fillRect(0,0,40,40);
+    panoGraphics.generateTexture('pano_shape',40,40);
+
+    // Crianças (Ian, Diana, Arup) as simple circles
+    const childGraphics = this.make.graphics({x:0,y:0,add:false});
+    childGraphics.fillStyle(0xff69b4,1); // Pinkish for a child sprite
+    childGraphics.fillCircle(15,15,15);
+    childGraphics.generateTexture('child_shape',30,30);
+
+    // Gui e Giullya as another set of circles
+    const guiGraphics = this.make.graphics({x:0,y:0,add:false});
+    guiGraphics.fillStyle(0x00ff00,1); // Green circle for Gui
+    guiGraphics.fillCircle(20,20,20);
+    guiGraphics.generateTexture('gui_shape',40,40);
+
+    const giullyaGraphics = this.make.graphics({x:0,y:0,add:false});
+    giullyaGraphics.fillStyle(0xff0000,1); // Red circle for Giullya
+    giullyaGraphics.fillCircle(20,20,20);
+    giullyaGraphics.generateTexture('giullya_shape',40,40);
+
+    // Portal (circle)
+    const portalGraphics = this.make.graphics({x:0,y:0,add:false});
+    portalGraphics.fillStyle(0x00ffff,1);
+    portalGraphics.fillCircle(40,40,40);
+    portalGraphics.generateTexture('portal_italia_shape',80,80);
+  }
+
+  create() {
+    this.cameras.main.setBackgroundColor('#000000');
+
+    // Sala
+    this.add.image(400, 300, 'sala_shape');
+
+    // Crianças
+    this.add.text(100, 100, "Ian, Diana e Arup brincam na sala...", {
+      font: '16px Arial', fill:'#ffffff'
+    });
+    // Just place three child shapes for Ian, Diana, Arup
+    this.add.image(150, 200, 'child_shape');
+    this.add.image(200, 200, 'child_shape');
+    this.add.image(250, 200, 'child_shape');
+
+    this.add.text(400, 50, "Limpe a arma de portais suja de cocô em 60 segundos!", {
+      font: '20px Arial', fill:'#ffffff'
+    }).setOrigin(0.5);
+
+    // Arma suja
+    this.arma = this.add.sprite(400, 300, 'arma_suja_shape').setInteractive();
+
+    // Nível de sujeira
+    this.dirtCount = 5;
+
+    // Criar ferramentas
+    this.tools = [];
+    this.createTool(350,450,'esponja_shape');
+    this.createTool(450,450,'pano_shape');
+
+    // Timer
+    this.timeLimit = 60000; // 60s
+    this.startTime = this.time.now;
+    this.timerText = this.add.text(750, 20, "60s", {
+      font: '20px Arial', fill:'#ffffff'
+    }).setOrigin(1,0);
+
+    this.gameOver = false;
+  }
+
+  createTool(x, y, texture) {
+    const tool = this.add.sprite(x,y,texture).setInteractive({ draggable: true });
+    this.input.setDraggable(tool);
+
+    this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
+      if (gameObject === tool) {
+        tool.x = dragX;
+        tool.y = dragY;
+      }
+    });
+
+    this.input.on('dragend', (pointer, gameObject) => {
+      if (gameObject === tool && !this.gameOver) {
+        // Checar sobreposição
+        if (Phaser.Geom.Intersects.RectangleToRectangle(tool.getBounds(), this.arma.getBounds())) {
+          this.cleanDirt();
+        }
+      }
+    });
+
+    this.tools.push(tool);
+  }
+
+  cleanDirt() {
+    this.dirtCount--;
+    if (this.dirtCount <= 0 && !this.gameOver) {
+      this.success();
+    }
+  }
+
+  update(time, delta) {
+    if (this.gameOver) return;
+
+    const elapsed = time - this.startTime;
+    const remaining = Math.max(0, this.timeLimit - elapsed);
+    const seconds = Math.ceil(remaining / 1000);
+    this.timerText.setText(seconds + "s");
+
+    if (remaining <= 0 && this.dirtCount > 0) {
+      this.fail();
+    }
+  }
+
+  success() {
+    this.gameOver = true;
+    this.add.text(400, 350, "Você limpou a arma!", {
+      font: '24px Arial', fill:'#00ff00'
+    }).setOrigin(0.5);
+
+    // Gui e Giullya
+    this.add.image(400, 400, 'gui_shape');
+    this.add.image(450,400,'giullya_shape');
+
+    this.add.text(400,450,"Giullya beija Gui na bochecha. Um portal se abre para a Itália!", {
+      font: '18px Arial', fill:'#ffffff', align:'center', wordWrap: {width:500}
+    }).setOrigin(0.5);
+
+    // Portal
+    this.add.image(400,500,'portal_italia_shape');
+
+    this.time.delayedCall(5000, () => {
+      // Próxima cena, se existir
+      this.scene.start('CenaFinalItalia');
+    });
+  }
+
+  fail() {
+    this.gameOver = true;
+    this.add.text(400, 350, "O tempo acabou! Você falhou!", {
+      font: '24px Arial', fill:'#ff0000'
+    }).setOrigin(0.5);
+
+    this.time.delayedCall(3000, () => {
+      this.scene.restart();
+    });
+  }
+}
 
 
     // =============================
@@ -1115,7 +1304,7 @@
       height: 600,
       backgroundColor: "#000000",
       scene: [
-       TimeBreakScene
+      RealidadeFilhosScene
       ],
       physics: {
         default: 'arcade',
